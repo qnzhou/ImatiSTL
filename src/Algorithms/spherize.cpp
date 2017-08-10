@@ -66,7 +66,7 @@ class vertexHeap : abstractHeap
  ~vertexHeap();
 
  inline void push(Vertex *v) {insert((void *)((VC_Cost *)v->info)->index);}
- inline Vertex *popHead() {return vertices[(int)removeHead()];}
+ inline Vertex *popHead() {return vertices[(j_voidint)removeHead()];}
  inline int isEmpty() {return (numels==0);}
 
  void remove(Vertex *);
@@ -100,8 +100,8 @@ void vertexHeap::update(Vertex *v)
 
 int vertexHeap::compare(const void *e1, const void *e2)
 {
- Vertex *a = vertices[(int)e1];
- Vertex *b = vertices[(int)e2];
+ Vertex *a = vertices[(j_voidint)e1];
+ Vertex *b = vertices[(j_voidint)e2];
  double l1 = ((VC_Cost *)a->info)->cost;
  double l2 = ((VC_Cost *)b->info)->cost;
  if (l1 < l2) return -1;
