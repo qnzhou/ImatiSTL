@@ -1,0 +1,92 @@
+egg_TARGET_TYPE := static-library
+egg_TARGET := ImatiSTL
+
+# Directories where library source code resides
+egg_SOURCE_PATH :=
+egg_SOURCE_PATH += ../src/Algorithms
+egg_SOURCE_PATH += ../src/ImatiSTL
+egg_SOURCE_PATH += ../src/Kernel
+egg_SOURCE_PATH += ../src/TMesh
+
+# Add here all source code files to be compiled
+egg_SOURCES := 
+egg_SOURCES += checkAndRepair.cpp
+egg_SOURCES += delaunize.cpp
+egg_SOURCES += detectIntersections.cpp
+egg_SOURCES += faceClustering.cpp
+egg_SOURCES += featureRecover.cpp
+egg_SOURCES += holeFilling.cpp
+egg_SOURCES += simplification.cpp
+egg_SOURCES += smoothing.cpp
+egg_SOURCES += spherize.cpp
+egg_SOURCES += subdivision.cpp
+
+egg_SOURCES += computeOuterHull.cpp
+egg_SOURCES += cutIntersections.cpp
+egg_SOURCES += dijkstraGraph.cpp
+egg_SOURCES += epsilonSampling.cpp
+egg_SOURCES += marchIntersections.cpp
+egg_SOURCES += offset.cpp
+egg_SOURCES += uniformRemesh.cpp
+
+egg_SOURCES += coordinates.cpp
+egg_SOURCES += graph.cpp
+egg_SOURCES += heap.cpp
+egg_SOURCES += jqsort.cpp
+egg_SOURCES += list.cpp
+egg_SOURCES += matrix.cpp
+egg_SOURCES += orientation.c
+egg_SOURCES += point.cpp
+egg_SOURCES += tmesh.cpp
+
+egg_SOURCES += edge.cpp
+egg_SOURCES += edgeHeap.cpp
+egg_SOURCES += io.cpp
+egg_SOURCES += tin.cpp
+egg_SOURCES += triangle.cpp
+egg_SOURCES += vertex.cpp
+
+
+# Defines, includes, flags
+DEFINES := -DIS64BITPLATFORM
+INCLUDES := -I../include/ImatiSTL  -I../include/Kernel  -I../include/TMesh
+egg_FLAGS := 
+egg_RELEASE_FLAGS := -O3
+egg_DEBUG_FLAGS := -g
+
+egg_CFLAGS := 
+egg_CXXFLAGS := -fpermissive -std=c++11 -Wno-write-strings -Wno-int-to-pointer-cast $(DEFINES) $(INCLUDES)
+
+
+
+##########################
+
+
+##################
+# AR configuration
+egg_ARFLAGS := rcs
+##################
+
+# Support for dynamic libraries
+
+# ##########################
+# # OS-specific code for dynamic libraries (.so/.dylib).
+# UNAME := $(shell uname -s)
+# GENERIC = true
+# # MACOSX
+# ifeq ($(UNAME),Darwin)
+# egg_DYNAMIC_LIB_E := dylib
+# egg_LDFLAGS := -dynamiclib
+# GENERIC = false
+# endif
+# # generic UNIX/LINUX
+# ifeq ($(GENERIC),true)
+# egg_FLAGS += -fPIC
+# egg_LDFLAGS := -shared
+# endif
+# ##########################
+
+# on Linux, don't forget to launch the test in the following way:
+# $ LD_LIBRARY_PATH=/home/user/path/to/test/ ./dynamictest.out
+
+include ./eggmakelib/engine.mk

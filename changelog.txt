@@ -1,0 +1,326 @@
+From version V4.2-1 to V4.2-2
+---------------------------
+-> Bugfix for Unix: fixed case sensitiveness for include "edgeHeap.h" in various files
+-> Bugfix for Unix: added const modifier to input parameter for TriMesh::toRawOffset()
+-> Bugfix for Unix: added const modifier to input parameter for Basic_TMesh::isInnerPoint()
+
+
+From version V4.2 to V4.2-1
+---------------------------
+-> Added fabs() function for 'coord'
+
+
+From version V4.1 to V4.2
+---------------------------
+-> Bugfix - useRationals(false) now causes useFiltering = true (this restores compatibility with old implementations)
+-> Bugfix - original computeOuterHull() could miss some rightmost components. Fixed.
+-> Source tree reorganized to include 64bit MPIR support
+-> Bugfix - selectIntersectingTriangles() could fail with non-NULL triangle info fields
+-> Optimization(?) - computeOuterHull() tracks outer triangles in a simpler way
+-> Bugfix(?) - jqsort now reverts to std::sort because, at least on Mac, recursion seems to be too stack intensive
+-> Feature - added optional parameter to esilonSampling() to act only on selections
+-> Feature - added isFlat() and isDoubleFlat() methods to class Vertex
+-> Feature - added removeIfRedundant() method to class Vertex
+-> Feature - added Vertex::collapseOnV1() and Vertex::collapseOnV2() to avoid rounding in filtered mode
+-> Feature - added Basic_TMesh::removeRedundantVertices()
+-> Feature - computeOuterHull() runs removeRedundantVertices() on both solids and sheets
+-> Feature - Added round() function for coord
+-> Optimization(?) - removeDegenerateTriangles() is now faster. Extensive testing still missing.
+-> Bugfix - TriMesh::split() returns NULL instead of crashing when run on an empty mesh
+-> Bugfix - Basic_TMesh::fillSmallBoundaries() could miss holes on meshes with dirty vertex masks
+-> Feature - Added Basic_TMesh::simplify()
+-> Feature - Added Basic_TMesh::laplacianSmooth(), bilateralSmooth() and spherize()
+-> Feature - Added TriMesh::uniformRemesh()
+-> Feature - Added Basic_TMesh::tagPlanarRegionsBoundaries()
+-> Feature - Added Loop, Sqrt3 and Bender subdivision for Basic_TMesh
+-> Feature - Added Basic_TMesh::featureRecover() to re-sharepen chamfered sharp featured
+-> Feature - Added threshold number of vertices to epsilonSampling
+-> Feature - Added Basic_TMesh::delaunizeFlatAreas()
+-> Slight code reorganization
+
+From version V4.0 to V4.1
+---------------------------
+-> Code reorganization
+-> Added possibility to switch filtered arithmethic off
+
+From version V3.2 to V4.0
+---------------------------
+-> The whole source tree has been made modular and made of different projects.
+
+From version V3.1-1 to V3.2
+---------------------------
+-> The whole source tree has been made parametric on a new variable USE_HYBRID_KERNEL.
+   Now can be compiled with or without Mpir and with or without CGAL. See README.txt.
+
+From version V3.1 to V3.1-1
+---------------------------
+-> Added method List::moveNodeTo 
+-> Slight optimization in detectIntersections.cpp 
+-> Basic optimizations in point.cpp 
+
+From version V3.0-3 to V3.1
+---------------------------
+-> Added method TriMesh::quantize()
+-> Added method TriMesh::epsilonSample()
+-> Modified parameter type in method TriMesh::normalize()
+-> bug fixed in function sameString() defined in io.cpp
+-> Added additional parameter to computeOuterHull() and cutIntersections() to exit on timeout.
+-> bug fixed in function Point::segmentIntersectsTriangle()
+-> bug fixed in function selectIntersectingTriangles()
+-> Optimized cutIntersections() and computeOuterHull() [now faster and exploit multi-core architectures]
+-> modified function removeDuplicatedTriangles() [actually removes instead of splitting]
+-> bug fixed in function Edge::merge() [particular case treated]
+-> Added methods exitOnTimeout() and printElapsedTime() to class ImatiSTL
+-> Added file include/cutIntersections.h
+-> Bug fixed in TriMesh::createSubMeshFromSelection()
+-> Added conditional compilation flag EXTENSIBLE_IMATISTL. Set this for the preprocessor if
+  base classes are to be extended (e.g. to use the AMF extension)
+-> Added new input/output format EFF to store models without coordinate truncation (exact)
+-> bug fixed in function ric_getExtremeTriangleOnX() (used by computeOuterHull())
+-> Modified function computeOuterHull() to remove inner components
+
+From version V3.0 to V3.0-3
+---------------------------
+-> Method TriMesh::createSubMeshFromTriangle() modified to make it compatible with AMF extension
+
+From version V3.0 to V3.0-2
+---------------------------
+-> Method TriMesh::computeOuterHull() modified (fixed minor bug)
+-> Added method TriMesh::removeSmallestShells(double)
+-> Method TriMesh::cutAndStitch() modified (bug fixed)
+
+From version V2.4-5 to V3.0
+---------------------------
+-> Method TriMesh::rebuildConnectivity() made virtual
+-> Fixed minor bug in TriMesh::rebuildConnectivity()
+-> Fixed method TriMesh::bridgeBoundaries(Triangle *)
+-> Fixed minor bug in TriMesh::flipNormals(Triangle *)
+-> Fixed minor bug in TriMesh::removeVertices() Edge() and Triangles()
+-> Added virtual method TriMesh::newObject()
+-> Added method TriMesh::toThinShell()
+-> Method TriMesh::fillSmallBoundaries() modified
+-> Method TriMesh::computeOuterHull() modified (return value changed ! Incompatible with previous versions)
+-> Method TriMesh::cutAndStitch() modified (fixed ?)
+-> Method TriMesh::createSubMeshFromSelection() modified (fixed minor bug)
+
+From version V2.4-4 to V2.4-5
+---------------------------
+-> Fixed TriMesh::createSubMeshFromSelection()
+-> Fixed bug that made List::sort() fail (due to isBaseType() functions)
+
+From version V2.4-3 to V2.4-4
+---------------------------
+-> Added init() funtions to TriMesh
+-> Added method TriMesh::createSubMeshFromTriangle()
+-> Added method isBaseType() for Vertex, Edge, Triangle and TriMesh
+-> Fixed method TriMesh::eulerUpdate()
+
+From version V2.4-2 to V2.4-3
+---------------------------
+-> fixed potential issue in computeOuterHull()
+-> fixed issue in mc_grid::remesh() - now possible nonmanifold vertices are duplicated
+
+From version V2.4-1 to V2.4-2
+---------------------------
+->function void mc_grid::sample_triangle(Triangle *t) made protected and virtual					
+->function void mc_grid::createVertices(List *l, int i, int j, int k) made protected and virtual
+->in class mc_grid, tin, xy, xz, zy and numrays made protected
+->added function virtual mc_ints * mc_grid::newMcInts(coord a, unsigned char b, Triangle *s)
+->bug fixed in int TriMesh::StarTriangulateHole(Edge *e)
+->bug fixed in int TriMesh::TriangulateHole(Edge *e, List *vl)
+->bug fixed in int TriMesh::retriangulateVT(Vertex *v)
+->function void TriMesh::latticeRemesh(UINT16=128, bool=false) made virtual
+->function int TriMesh::TriangulateHole(Edge *, List *) made virtual
+
+From version V2.4 to V2.4-1
+---------------------------
+->some changes in int TriMesh::refineSelectedHolePatches(Triangle *)
+->some changes in int TriMesh::StarTriangulateHole(Edge *)
+->small change in Triangle * TriMesh::CreateTriangle(Edge *, Edge *, Edge *)
+->function int TriMesh::StarTriangulateHole(Edge *) made virtual
+->function int TriMesh::refineSelectedHolePatches(Triangle *) made virtual
+
+From version V2.3-4 to V2.4
+---------------------------
+->bug fixed in TriMesh::cutIntersections()
+
+From version V2.3-3 to V2.3-4
+---------------------------
+->function void TriMesh::moveMeshElements(TriMesh *t) made virtual. Now has also a new bool parameter setted true by default.
+->function void TriMesh::append(TriMesh *t) made virtual.
+->function TriMesh * TriMesh::split() made virtual.
+->function TriMesh * TriMesh::createSubMeshFromSelection(Triangle *t0 = NULL, bool keep_ref = 0) made virtual.
+->small changes in void TriMesh::eulerUpdate()
+
+From version V2.3-2 to V2.3-3
+---------------------------
+->function Triangle * TriMesh::CreateTriangle(Edge *e1, Edge *e2, Edge *e3) made virtual
+->function Triangle * TriMesh::CreateUnorientedTriangle(Edge *, Edge *, Edge *) made virtual
+->function bool * TriMesh::CreateTriangleFromVertices(ExtVertex *, ExtVertex *, ExtVertex *) made virtual. Now return a Triangle *
+->other small changes in CreateTriangleFromVertices.
+->function bool * TriMesh::CreateIndexedTriangle(ExtVertex **, int, int, int) now return a Triangle *
+->function Triangle * TriMesh::EulerEdgeTriangle(Edge *, Edge *) made virtual
+->function Edge * TriMesh::bridgeBoundaries(Edge *, Edge *) made virtual
+->removed keyword virtual from int TriMesh::cutAndStitch()
+->removed keyword virtual from int TriMesh::removeDuplicatedTriangles()
+->removed keyword virtual from int TriMesh::duplicateNonManifoldVertices()
+
+From version V2.3-1 to V2.3-2
+---------------------------
+->replaced the p_swap() in TriMesh::flipNormal() with e->invert()
+->replaced the p_swap() in TriMesh::flipNormal(Triangle *t0) with e->invert()
+->Added function Vertex * TriMesh::newVertex(Vertex *v)
+->Added function Edge *	TriMesh::newEdge(Edge *e)
+->function bool Edge::swap(const bool fast=0) made virtual
+->function int Edge::removeDuplicatedTriangles() made virtual
+->function Edge::invert() made virtual
+->minor changes to int TriMesh::duplicateNonManifoldVertices()
+
+From version V2.3 to V2.3-1
+---------------------------
+-> function TriMesh::cutAndStitch() made virtual
+-> function TriMesh::duplicateNonManifoldVertices() made virtual
+-> function TriMesh::splitEdge(Edge *, Point *, bool) made virtual
+-> function TriMesh::splitTriangle(Triangle *, Point *, bool) made virtual
+
+From version V2.2.1 to V2.3
+---------------------------
+-> Added initial support for AMF extension
+-> Modified class SymMatrix4x4 to have coord coefficients
+-> Added function TriMesh::toRawOffset()
+-> Added method Edge::getConvexity()
+-> Added method TriMesh::bridgeBoundaries()
+-> Fixed method TriMesh::splitTriangle()
+-> Added method TriMesh::safeCoordBackApproximation()
+-> Fixed method TriMesh::latticeRemesh() which now accepts an additional parameter
+
+From version V2.2 to V.2.2.1
+-----------------------------
+-> TriMesh::coordBackApproximation() is now a public method
+-> added funtion Triangle::getCapEdge()
+-> function TriMesh::removeDegenerateTriangles() has been reimplemented
+-> function TriMesh::rebuildConnectivity() now returns true if input was oriented manifold
+-> funtion Triangle::intersects() now accepts a 'justproper' parameter
+-> funtion TriMesh::selectIntersectingTriangles() now accepts a 'justproper' parameter
+
+From version V2.1 to V2.2
+----------------------------
+-> added two new methods and corresp. source files
+   TriMesh::cutIntersections()
+   TriMesh::computeOuterHull()
+   
+From version V2.0 to V2.1
+----------------------------
+-> bugfix: comparison operators for coordinates have a better behaviour
+-> added function Edge::intersects()
+-> added the following static functions for class Point
+	pointInInnerSegment
+	pointInSegment
+	pointInInnerTriangle
+	pointInTriangle
+	segmentsIntersect
+	innerSegmentsCross
+	segmentIntersectsTriangle
+-> bugfix: fixed and optimized selectIntersectingTriangle and changed default parameter
+-> added function Triangle::nextEdge
+-> added function Triangle::intersects
+
+
+From version V1.2.5 to V2.0
+----------------------------
+-> Added support to exact computation through MPIR
+-> Removed all the machinery which used acos_tolerance.
+   Computation is now either exact or float, without any specific tolerance.
+
+-> New files: include/coordinates.h and src/IMATISTL/coordinates.cpp
+This defines the type 'coord' representing the mixed kernel.
+Where appropriate, functions that returned a 'double' in V1.2.5 now return a 'coord'.
+If such a return value R must be used as a double, use R.toDouble()
+
+ImatiSTL::init() accepts one parameter only defaulted to NULL
+
+New functions
+	 static function ImatiSTL::useRationals()
+	 static function ImatiSTL::isUsingRationals()
+	 operator [] and function at() to class Point to access i'th coordinate.
+	 static function Point::lineLineIntersection()
+	 static function Point::linePlaneIntersection()
+	 static function Point::squaredTriangleArea3D()
+	 function TriMesh::moveMeshElements()
+
+Deprecated functions removed due to the new mixed kernel
+	Point::intersectionWithPlane()
+	Triangle::isInside()
+	Triangle::intersectsEdge()
+	Triangle::isCap()
+	Triangle::isNeedle()
+	Triangle::isDegenerate()
+
+
+From version V1.2.4 to V1.2.5
+----------------------------
+-> bugfix: selectIntersectingTriangles() was buggy under certain circumstances
+
+From version V1.2.3 to V1.2.4
+----------------------------
+-> loadSTL() made more robust against files with wrong syntax
+
+From version V1.2.2 to V1.2.3
+----------------------------
+-> Bugfix: rebuildConnectivity() fixed to avoid loadSTL() crash on some models
+
+From version V1.2.1 to V1.2.2
+----------------------------
+
+!!!
+Programs compiled with earlier versions may require the
+use of "using namespace IMATI_STL;" directive.
+!!!
+
+-> The whole library definition is now within a new namespace called IMATI_STL
+-> bugfix: changed prototype of ImatiSTL::init and ImatiSTL::display_message
+
+
+From V1.2 to V1.2.1 (first public Release - 29/04/2014)
+--------------------
+
+-> marchIntersections.cpp: fix to allow compilation on Ubuntu Linux
+-> Bugfix: Modified tin.cpp, detectIntersections.cpp, checkAndRepair.cpp, holeFilling.cpp and io.cpp
+   (functions now use bits 5 and 6 only for internal operations)
+
+From version V1.1 to V1.2
+-------------------------
+
+-> ForceNormalConsistence() does no longer invert closed shells
+-> added method TriMesh::translate()
+-> added method TriMesh::getCenter()
+-> added info field to TriMesh
+
+
+From version V1.0 to V1.1
+-------------------------
+
+Source tree structure
+-> Added subdirectory src/ARLGORITHMS and moved some of the .cpp files therein
+-> Added a new source file marchIntersections.cpp to src/ALGORITHMS
+-> Added a new header file marchIntersections.h to include
+
+vc9/imatistl.vcproj
+-> updated according to the new source tree structure and to the new source and header files
+
+test/test.cpp
+-> Updated to provide usage evidence of the new function latticeRemesh()
+
+include/tin.h
+-> Re-ordered the list of class methods
+-> Added prototype of latticeRemesh() with calling instructions
+
+src/ALGORITHMS/checkAndRepair.cpp
+-> Added implementation of function TriMesh::latticeRemesh()
+
+src/holeFilling.cpp
+-> Moved implementation of some functions from tin.cpp to this file
+
+src/detectIntersections.cpp
+-> Modified main function's code for better performance
+-> Bugfix implemented

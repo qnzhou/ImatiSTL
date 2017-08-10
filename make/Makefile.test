@@ -1,0 +1,17 @@
+egg_TARGET := test
+egg_SOURCES := test.cpp
+egg_SOURCE_PATH := ../src/ImatiSTL/
+
+DEFINES := -DIS64BITPLATFORM
+INCLUDES := -I../include/ImatiSTL  -I../include/Kernel  -I../include/TMesh
+egg_FLAGS := 
+egg_RELEASE_FLAGS := -O3
+egg_DEBUG_FLAGS := -g
+
+egg_CFLAGS := 
+egg_CXXFLAGS := -fpermissive -std=c++11 -Wno-write-strings -Wno-int-to-pointer-cast $(DEFINES) $(INCLUDES)
+
+egg_LDFLAGS := -L.
+egg_LDLIBS := -lImatiSTL
+
+include ./eggmakelib/engine.mk
