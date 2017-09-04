@@ -76,7 +76,6 @@ SET(IMATISTL_SRC
     ${PROJECT_SOURCE_DIR}/src/ImatiSTL/epsilonSampling.cpp
     ${PROJECT_SOURCE_DIR}/src/ImatiSTL/marchIntersections.cpp
     ${PROJECT_SOURCE_DIR}/src/ImatiSTL/offset.cpp
-    ${PROJECT_SOURCE_DIR}/src/ImatiSTL/test.cpp
     ${PROJECT_SOURCE_DIR}/src/ImatiSTL/uniformRemesh.cpp
     )
 
@@ -105,10 +104,15 @@ SET(TMESH_SRC
     ${PROJECT_SOURCE_DIR}/src/TMesh/vertex.cpp
     )
 
-ADD_EXECUTABLE(ImatiSTL
+SET(MAIN_SRC ${PROJECT_SOURCE_DIR}/src/ImatiSTL/test.cpp)
+
+ADD_LIBRARY(ImatiSTL
     ${ALGORITHM_SRC}
     ${KERNEL_INC} ${KERNEL_SRC}
     ${TMESH_INC} ${TMESH_SRC}
     ${MESHFIX_INC} ${MESHFIX_SRC}
     ${IMATISTL_INC} ${IMATISTL_SRC}
     )
+
+ADD_EXECUTABLE(STLFix ${MAIN_SRC})
+TARGET_LINK_LIBRARIES(STLFix ImatiSTL)
