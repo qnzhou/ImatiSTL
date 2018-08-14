@@ -357,7 +357,9 @@ bool Vertex::removeIfRedundant(bool check_neighborhood)
 		delete ve;
 		ve = VE();
 		FOREACHVEEDGE(ve, e, n) if (e->overlaps()) { delete ve; return false; }
-	} else ve = VE();
+	}
+	else 
+		ve = VE();
 
 	if (e1 != NULL) ve->removeNode(e1); // means isDoubleFlat()
 	if (e2 != NULL) ve->removeNode(e2); // means isDoubleFlat()
@@ -369,7 +371,7 @@ bool Vertex::removeIfRedundant(bool check_neighborhood)
 		{
 			vo1 = e->t1->oppositeVertex(e);
 			vo2 = e->t2->oppositeVertex(e);
-			if (!e->v1->exactSameSideOnPlane(e->v2, vo1, vo2) && vo1->exactMisalignment(e->v1, vo2) && vo1->exactMisalignment(e->v2, vo2))
+			if (vo1->exactMisalignment(e->v1, vo2) && vo1->exactMisalignment(e->v2, vo2) && !e->v1->exactSameSideOnPlane(e->v2, vo1, vo2))
 			{
 				if (!e->swap()) { delete ve; return false; }
 				break;

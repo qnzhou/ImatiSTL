@@ -1,9 +1,41 @@
+From version V4.2-3 to V4.2-4
+-----------------------------
+-> Minor changes to fix compilation on Linux systems
+
+From version V4.2-2 to V4.2-3
+---------------------------
+-> Added preproc definition USE_PER_TRIANGLE_COLORS to support colors on triangles. Project files in vc12-ct.
+-> In basics.h, moved UBYTE and BYTE defs out of #ifndef _INC_WINDOWS
+-> Added Edge::isFlatAndConvexQuadrilateral()
+-> Added Point::projection() on plane
+-> Bugfix: delaunize did not actually delaunize...
+-> Added Edge::delaunayMinAngleSquaredSin()
+-> Bugfix: epsilonSample() with default pars did not work.
+-> Modified dynamicEdgeHeap with 'coord' costs and updated epsilonSample accordingly
+-> Modified edgeHeap with 'coord' costs and updated simplify accordingly
+-> Bugfix: fixed Point::squaredDistanceFromLine()
+-> Bugfix: fixed Basic_TMesh::delaunize()
+-> Added Triangle::getShortestEdge()
+-> Added Point::squaredDistanceFromPlane()
+-> Added overload to Point::linePlaneIntersection()
+-> Added static member coord TMesh::maximum_coord_value
+-> Bugfix: xyzCompare() was not as precise as expected when not using rationals
+
 From version V4.2-1 to V4.2-2
 ---------------------------
+-> Added Point::squaredDistanceFromLine()
+-> Point::closestPoint() has been made exact
+-> Slight optimization of computeOuterHull() (redundant vertices removed from output)
+-> Added optional parameter to Basic_TMesh::removeRedundantVertices()
+-> Slight optimization in exact arithmetic (constructors for coord objects and some new friendships)
+-> Added function setFromDouble to coord
+-> Optimization: operator >> for coordinates now produces double when possible
+-> Bugfix: fixed operator << for coordinates when compiling with CGAL
 -> Bugfix for Unix: fixed case sensitiveness for include "edgeHeap.h" in various files
 -> Bugfix for Unix: added const modifier to input parameter for TriMesh::toRawOffset()
 -> Bugfix for Unix: added const modifier to input parameter for Basic_TMesh::isInnerPoint()
-
+-> Added function TMesh::removeNearlyDegenerateTriangles()
+-> Added support to 'float64' property in ::loadPLY()
 
 From version V4.2 to V4.2-1
 ---------------------------

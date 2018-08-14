@@ -65,6 +65,7 @@ class TMesh
  static char *app_authors;
  static char *app_url;
  static char *app_maillist;
+ static coord maximum_coord_value; // No other coord number can be larger than this
 
  static const char *filename; // This might be null. If not, it represents the file we are currently working with.
 
@@ -101,6 +102,20 @@ class TMesh
  static bool useRationals() { bool t = isUsingRationals(); useRationals(true); return t; }
 
  static void setFilename(const char *fname) { filename = fname; }
+
+ static double tri_orientation(double *pa, double *pb, double *pc);
+ static double tet_orientation(double *pa, double *pb, double *pc, double *pd);
+
+private:
+
+	static double _spl, _eps, _reb, _ccwebA, _ccwebB, _ccwebC, _o3ebA, _o3ebB, _o3ebC;
+	static double _iccebA, _iccebB, _iccebC, _ispebA, _ispebB, _ispebC;
+
+	static int _fesze(int elen, double *e, int flen, double *f, double *h);
+	static int _seze(int elen, double *e, double b, double *h);
+	static double _estm(int elen, double *e);
+	static double _adaptive2dorientation(double *pa, double *pb, double *pc, double detsum);
+	static double _adaptive3dorientation(double *pa, double *pb, double *pc, double *pd, double permanent);
 };
 
 #define DISPMSG_ACTION_SETWIDGET	1
@@ -109,9 +124,9 @@ class TMesh
 #define DISPMSG_ACTION_PUTMESSAGE	4
 #define DISPMSG_ACTION_ERRORDIALOG	5
 
-#ifndef _INC_WINDOWS
 typedef unsigned char	UBYTE;
 typedef   signed char	 BYTE;
+#ifndef _INC_WINDOWS
 typedef unsigned short UINT16;
 typedef   signed short	INT16;
 #endif

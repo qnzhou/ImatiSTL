@@ -31,7 +31,7 @@
 namespace IMATI_STL
 {
 
-double squaredEdgeLength(Edge *e) { return TMESH_TO_DOUBLE(e->squaredLength()); }
+coord squaredEdgeLength(Edge *e) { return e->squaredLength(); }
 
 int TriMesh::epsilonSample(coord epsilon, bool only_on_selection, int max_numv)
 {
@@ -40,6 +40,8 @@ int TriMesh::epsilonSample(coord epsilon, bool only_on_selection, int max_numv)
  Point p;
  int bdr, missv;
  coord msl=0.0;
+
+ if (max_numv == 0) max_numv = INT_MAX;
 
  ImatiSTL::begin_progress();
 

@@ -600,7 +600,11 @@ Basic_TMesh *mbs_cutoffSubtin(Vertex *v, Edge *e, Edge **out)
 		if (t->e1->info == NULL) { t->e1->info = e1 = new Edge(t->e1->v1, t->e1->v2); nes.appendHead(t->e1); } else e1 = (Edge *)t->e1->info;
 		if (t->e2->info == NULL) { t->e2->info = e2 = new Edge(t->e2->v1, t->e2->v2); nes.appendHead(t->e2); } else e2 = (Edge *)t->e2->info;
 		if (t->e3->info == NULL) { t->e3->info = e3 = new Edge(t->e3->v1, t->e3->v2); nes.appendHead(t->e3); } else e3 = (Edge *)t->e3->info;
-		nt = new Triangle(e1, e2, e3);
+#ifdef USE_PER_TRIANGLE_COLORS
+		nt = tin->newTriangle(e1, e2, e3, t->getColor());
+#else
+		nt = tin->newTriangle(e1, e2, e3);
+#endif
 		tin->T.appendHead(nt);
 		if (t->e1->t1 == t) e1->t1 = nt; else e1->t2 = nt;
 		if (t->e2->t1 == t) e2->t1 = nt; else e2->t2 = nt;

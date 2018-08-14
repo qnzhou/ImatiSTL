@@ -36,6 +36,10 @@
 namespace T_MESH
 {
 
+#ifdef USE_PER_TRIANGLE_COLORS
+#define DEFAULT_TRIANGLE_COLOR 0x808080ff // Grey
+#endif
+
 //! Triangle of a Basic_TMesh.
 
 //! This  class represents a triangle of a triangulation. Each Triangle has
@@ -54,8 +58,14 @@ class Triangle
  void *info;			//!< Further information
  unsigned char mask;		//!< bit-mask for marking purposes
 
- Triangle();
+#ifdef USE_PER_TRIANGLE_COLORS
+ uint32_t packed_color;	//! Per-triangle packed color RGBA
+ Triangle(Edge *, Edge *, Edge *, uint32_t rgba = DEFAULT_TRIANGLE_COLOR);		//!< Constructor
+#else
  Triangle(Edge *, Edge *, Edge *);		//!< Constructor
+#endif
+
+ Triangle();
 
  //! Returns true only if object is a basic Triangle. All the reimplementations must return false.
  TMESH_VIRTUAL bool isBaseType() const { return true; }
@@ -166,6 +176,9 @@ class Triangle
  //! Returns the longest edge of the triangle.
  Edge *getLongestEdge() const;
 
+ //! Returns the shortest edge of the triangle.
+ Edge *getShortestEdge() const;
+
  //! Degeneracy check using exact predicates. Return TRUE iff triangle has zero area.
  bool isExactlyDegenerate() const;
 
@@ -208,6 +221,18 @@ class Triangle
 
  //! Return TRUE iff one of the adjacent triangles overlaps with this one
  bool overlaps() const;
+
+
+#ifdef USE_PER_TRIANGLE_COLORS
+ static uint32_t random_color();
+ void setColor(uint32_t rgba) { packed_color = rgba; }
+ void setColor(UBYTE r, UBYTE g, UBYTE b, UBYTE a) { packed_color = (((uint32_t)r) << 24) + (((uint32_t)g) << 16) + (((uint32_t)b) << 8) + a; }
+ uint32_t getColor() const { return packed_color; }
+ UBYTE getRedComponent() const { return (UBYTE)((packed_color & 0xff000000) >> 24); }
+ UBYTE getGreenComponent() const { return (UBYTE)((packed_color & 0x00ff0000) >> 16); }
+ UBYTE getBlueComponent() const { return (UBYTE)((packed_color & 0x0000ff00) >> 8); }
+ UBYTE getAlphaComponent() const { return (UBYTE)((packed_color & 0x000000ff)); }
+#endif
 };
 
 #define FOREACHTRIANGLEEDGE(t, e) for ((e) = (t)->e1; (e) != NULL; (e)=((e)==(t)->e3)?(NULL):((t)->nextEdge(e)))

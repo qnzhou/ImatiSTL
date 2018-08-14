@@ -93,9 +93,9 @@ Point Q_matrix::bestAmongMidAndEndpoints(Edge *e)
  if (IS_VISITED(e->v2)) return (*(e->v2)); 
 
  Point mp = e->getMidPoint();			// Get Edge Midpoint
- double erm = getError(&mp, e);			// Error at midpoint
- double er1 = getError(e->v1, e);		// Error at v1
- double er2 = getError(e->v2, e);		// Error at v2
+ coord erm = getError(&mp, e);			// Error at midpoint
+ coord er1 = getError(e->v1, e);		// Error at v1
+ coord er2 = getError(e->v2, e);		// Error at v2
 
  if (erm <= er1 && erm <= er2) return mp;
  if (er1 <= erm && er1 <= er2) return (*(e->v1));
@@ -165,9 +165,9 @@ int Q_matrix::checkCollapse(Edge *e, Point *p)
 // If the collapse would produce an inversion, the
 // error is assigned an infinite value.
 
-double Q_matrix::getError(Point *v, Edge *e)
+coord Q_matrix::getError(Point *v, Edge *e)
 {
- if (use_check_collapse && !checkCollapse(e, v)) return DBL_MAX;
+ if (use_check_collapse && !checkCollapse(e, v)) return TMesh::maximum_coord_value;
 
  coord a,b,c,d;
  a = v->x*a2 + v->y*ab + v->z*ac + ad;
@@ -175,7 +175,7 @@ double Q_matrix::getError(Point *v, Edge *e)
  c = v->x*ac + v->y*bc + v->z*c2 + cd;
  d = v->x*ad + v->y*bd + v->z*cd + d2;
  coord ret = (v->x*a + v->y*b + v->z*c + d);
- return TMESH_TO_DOUBLE(ret);
+ return ret;
 }
 
 
@@ -189,7 +189,7 @@ double Q_matrix::getError(Point *v, Edge *e)
 
 // Returns the cost of contracting the edge 'e'.
 
-double quaderr_costFunction(Edge *e)
+coord quaderr_costFunction(Edge *e)
 {
  Q_matrix qs = GET_VERTEX_QEM(e->v1)+GET_VERTEX_QEM(e->v2);
 
@@ -220,7 +220,7 @@ Point edgelen_optimalPoint(Edge *e)
  return e->getMidPoint();
 }
 
-double edgelen_costFunction(Edge *e)
+coord edgelen_costFunction(Edge *e)
 {
  if (IS_VISITED(e->v1) && IS_VISITED(e->v2) && !IS_SHARPEDGE(e)) return DBL_MAX;
  if (IS_VISITED2(e->v1) && IS_VISITED2(e->v2)) return DBL_MAX;
@@ -236,7 +236,7 @@ double edgelen_costFunction(Edge *e)
  FOREACHVVVERTEX(vv, v, n) len += (((*v)-(*(e->v2)))*((*v)-(*(e->v2))));
  delete(vv);
 
- return TMESH_TO_DOUBLE(len);
+ return len;
 }
 
 
@@ -373,7 +373,7 @@ bool Basic_TMesh::simplify(int numver, int optimal, int edgelen, int check)
 // Collapses all the edges whose squared length is less than 'min_squared_length'.
 // Collapses are done in order, from shorter to longest edge.
 
-double shortedge_costFunction(Edge *e) { return (TMESH_TO_DOUBLE(e->squaredLength())); }
+coord shortedge_costFunction(Edge *e) { return (e->squaredLength()); }
 
 bool Basic_TMesh::collapseShortEdges(const double min_squared_length)
 {

@@ -35,7 +35,7 @@ egg_SOURCES += heap.cpp
 egg_SOURCES += jqsort.cpp
 egg_SOURCES += list.cpp
 egg_SOURCES += matrix.cpp
-egg_SOURCES += orientation.c
+egg_SOURCES += orientation.cpp
 egg_SOURCES += point.cpp
 egg_SOURCES += tmesh.cpp
 

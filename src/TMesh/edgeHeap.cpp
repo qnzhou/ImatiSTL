@@ -39,7 +39,7 @@ namespace T_MESH
 //
 //////////////////////////////////////////////////////
 
-edgeHeap::edgeHeap(List& edge_list, double(*cf)(Edge *)) : abstractHeap(edge_list.numels())
+edgeHeap::edgeHeap(List& edge_list, coord(*cf)(Edge *)) : abstractHeap(edge_list.numels())
 {
 	int n = edge_list.numels();
 	costFunction = cf;
@@ -82,15 +82,16 @@ void edgeHeap::update(Edge *e)
 
 int edgeHeap::compare(const void *e1, const void *e2)
 {
-	Edge *a = edges[(j_voidint)e1];
-	Edge *b = edges[(j_voidint)e2];
-	double l1 = getEdgeCost(a);
-	double l2 = getEdgeCost(b);
+	Edge *a = edges[(int)e1];
+	Edge *b = edges[(int)e2];
+	coord l1 = getEdgeCost(a);
+	coord l2 = getEdgeCost(b);
 	if (l1 < l2) return -1;
 	if (l2 < l1) return 1;
 
 	return 0;
 }
+
 
 //////////////////////////////////////////////////////
 //

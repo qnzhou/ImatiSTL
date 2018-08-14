@@ -43,7 +43,11 @@ namespace T_MESH
 	Edge *		Basic_TMesh::newEdge(Vertex *s, Vertex *d){				return new Edge(s, d);						}	//!< AMF_ADD 1.1>
 	Edge *		Basic_TMesh::newEdge(Edge *e){							return new Edge(e->v1,e->v2);				}	//!< AMF_ADD 1.1-2>
 	Triangle *	Basic_TMesh::newTriangle(){								return new Triangle();						}	//!< AMF_ADD 1.1>
+#ifdef USE_PER_TRIANGLE_COLORS
+	Triangle *	Basic_TMesh::newTriangle(Edge *a, Edge *b, Edge *c, uint32_t rgba){	return new Triangle(a, b, c, rgba);				}	//!< AMF_ADD 1.1>
+#else
 	Triangle *	Basic_TMesh::newTriangle(Edge *a, Edge *b, Edge *c){	return new Triangle(a, b, c);				}	//!< AMF_ADD 1.1>
+#endif
 
 //////////////////////////////////////////////////////////////////
 //                                                              //
@@ -203,7 +207,15 @@ void Basic_TMesh::init(const Basic_TMesh *tin, const bool clone_info)
   {ne=newEdge((Vertex *)e->v1->info, (Vertex *)e->v2->info); E.appendTail(ne); e->info = ne;}
 
  FOREACHVTTRIANGLE((&(tin->T)), t, n)
-  {nt=newTriangle((Edge *)t->e1->info,(Edge *)t->e2->info,(Edge *)t->e3->info); T.appendTail(nt); t->info = nt;}
+ {
+#ifdef USE_PER_TRIANGLE_COLORS
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info, t->getColor());
+#else
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info);
+#endif
+	 T.appendTail(nt);
+	 t->info = nt;
+ }
 
  FOREACHVVVERTEX((&(tin->V)), v, n) {((Vertex *)v->info)->e0 = (Edge *)v->e0->info; v->info = NULL;}
 
@@ -271,7 +283,15 @@ void Basic_TMesh::init(const Triangle *t0, const bool keep_reference)
   {UNMARK_VISIT2(e); ne=newEdge((Vertex *)e->v1->info, (Vertex *)e->v2->info); E.appendTail(ne); e->info = ne;}
 
  FOREACHVTTRIANGLE((&st), t, n)
-  {nt=newTriangle((Edge *)t->e1->info,(Edge *)t->e2->info,(Edge *)t->e3->info); T.appendTail(nt); t->info = nt;}
+ {
+#ifdef USE_PER_TRIANGLE_COLORS
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info, t->getColor());
+#else
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info);
+#endif
+	 T.appendTail(nt);
+	 t->info = nt;
+ }
 
  FOREACHVVVERTEX((&sv), v, n) ((Vertex *)v->info)->e0 = (Edge *)v->e0->info;
 
@@ -358,7 +378,11 @@ Edge *Basic_TMesh::CreateEdge(ExtVertex *v1, ExtVertex *v2, const bool check)
 
 ///////////////////// Creates a triangle //////////////////////////
 
-Triangle *Basic_TMesh::CreateTriangle(Edge *e1, Edge *e2, Edge *e3)
+Triangle *Basic_TMesh::CreateTriangle(Edge *e1, Edge *e2, Edge *e3
+#ifdef USE_PER_TRIANGLE_COLORS
+	, uint32_t rgba
+#endif
+	)
 {
  Triangle *tt, **at1, **at2, **at3;
  
@@ -372,7 +396,11 @@ Triangle *Basic_TMesh::CreateTriangle(Edge *e1, Edge *e2, Edge *e3)
  else if (e3->commonVertex(e1) == e3->v1 && e3->t2 == NULL) at3 = &(e3->t2);
  else return NULL;
 
- tt = newTriangle(e1,e2,e3);
+#ifdef USE_PER_TRIANGLE_COLORS
+ tt = newTriangle(e1, e2, e3, rgba);
+#else
+ tt = newTriangle(e1, e2, e3);
+#endif
  *at1 = *at2 = *at3 = tt;
  T.appendHead(tt);
 
@@ -386,7 +414,11 @@ Triangle *Basic_TMesh::CreateTriangle(Edge *e1, Edge *e2, Edge *e3)
 
 ///////////////////// Creates an unoriented triangle //////////////////////////
 
-Triangle *Basic_TMesh::CreateUnorientedTriangle(Edge *e1, Edge *e2, Edge *e3)
+Triangle *Basic_TMesh::CreateUnorientedTriangle(Edge *e1, Edge *e2, Edge *e3
+#ifdef USE_PER_TRIANGLE_COLORS
+	, uint32_t rgba
+#endif
+	)
 {
  Triangle *tt, **at1, **at2, **at3;
  
@@ -400,7 +432,11 @@ Triangle *Basic_TMesh::CreateUnorientedTriangle(Edge *e1, Edge *e2, Edge *e3)
  else if (e3->t2 == NULL) at3 = &(e3->t2);
  else return NULL;
 
- tt = newTriangle(e1,e2,e3);
+#ifdef USE_PER_TRIANGLE_COLORS
+ tt = newTriangle(e1, e2, e3, rgba);
+#else
+ tt = newTriangle(e1, e2, e3);
+#endif
  *at1 = *at2 = *at3 = tt;
  T.appendHead(tt);
 
@@ -492,7 +528,7 @@ void Basic_TMesh::unlinkTriangle(Triangle *t)
 
  if (v1nm)
  {
-  nv = newVertex(v1->x, v1->y, v1->z);
+  nv = newVertex(v1->x, v1->y, v1->z); nv->info = v1->info;
   nv->e0 = v1->e0;
   ve = v1->VE();
   FOREACHVEEDGE(ve, e, n) e->replaceVertex(v1, nv);
@@ -502,7 +538,7 @@ void Basic_TMesh::unlinkTriangle(Triangle *t)
  }
  if (v2nm)
  {
-  nv = newVertex(v2->x, v2->y, v2->z);
+  nv = newVertex(v2->x, v2->y, v2->z); nv->info = v2->info;
   nv->e0 = v2->e0;
   ve = v2->VE();
   FOREACHVEEDGE(ve, e, n) e->replaceVertex(v2, nv);
@@ -512,7 +548,7 @@ void Basic_TMesh::unlinkTriangle(Triangle *t)
  }
  if (v3nm)
  {
-  nv = newVertex(v3->x, v3->y, v3->z);
+  nv = newVertex(v3->x, v3->y, v3->z); nv->info = v3->info;
   nv->e0 = v3->e0;
   ve = v3->VE();
   FOREACHVEEDGE(ve, e, n) e->replaceVertex(v3, nv);
@@ -623,12 +659,24 @@ int Basic_TMesh::removeVertices()
 
 
 //// Removes all the vertices that can be deleted without changing the geometric realization. O(N).
-int Basic_TMesh::removeRedundantVertices()
+int Basic_TMesh::removeRedundantVertices(bool constrain_singularities)
 {
 	Node *n;
 	Vertex *v;
 	int fv = 0;
-	FOREACHVERTEX(v, n) if (v->removeIfRedundant()) fv++;
+
+	if (constrain_singularities)
+	{
+		V.sort(xyzCompare);
+		FOREACHVERTEX(v, n)
+		{
+			if ((n == V.head() || ((*v) != (*((Vertex *)n->prev()->data)))) &&
+			    (n == V.tail() || ((*v) != (*((Vertex *)n->next()->data)))) &&
+			    (v->removeIfRedundant())) fv++;
+		}
+	}
+	else
+		FOREACHVERTEX(v, n) if (v->removeIfRedundant()) fv++;
 	removeUnlinkedElements();
 	return fv;
 }
@@ -856,7 +904,16 @@ Basic_TMesh *Basic_TMesh::createSubMeshFromSelection(Triangle *t0, bool keep_ref
   {ne=newEdge((Vertex *)e->v1->info, (Vertex *)e->v2->info); tin->E.appendTail(ne); e->info = ne;}
 
  FOREACHVTTRIANGLE((&sT), t, n)
-  {nt=newTriangle((Edge *)t->e1->info,(Edge *)t->e2->info,(Edge *)t->e3->info); tin->T.appendTail(nt); t->info = nt; nt->info = t;}
+ {
+#ifdef USE_PER_TRIANGLE_COLORS
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info, t->getColor());
+#else
+	 nt = newTriangle((Edge *)t->e1->info, (Edge *)t->e2->info, (Edge *)t->e3->info);
+#endif
+	 tin->T.appendTail(nt);
+	 t->info = nt;
+	 nt->info = t;
+ }
 
  FOREACHVVVERTEX((&sV), v, n) ((Vertex *)v->info)->e0 = (Edge *)v->e0->info;
 
@@ -893,7 +950,9 @@ Basic_TMesh *Basic_TMesh::createSubMeshFromTriangle(Triangle *t0)
 	v2->setValue(t0->v3());
 	v3->setValue(t0->v2());
 	((Triangle *)ntin->T.head()->data)->info = t0->info;
-
+#ifdef USE_PER_TRIANGLE_COLORS
+	((Triangle *)ntin->T.head()->data)->setColor(t0->getColor());
+#endif
 	return ntin;
 }
 
@@ -1870,8 +1929,13 @@ Vertex *Basic_TMesh::splitEdge(Edge *e, Point *p, bool copy_mask)
  Edge *ne = newEdge(v, e->v2);
  Edge *ne1 = (e->t1 != NULL)?(newEdge(v, v3)):(NULL);
  Edge *ne2 = (e->t2 != NULL)?(newEdge(v, v4)):(NULL);
- Triangle *nt1 = (e->t1 != NULL)?(newTriangle(ne1, ne,be1)):(NULL);
- Triangle *nt2 = (e->t2 != NULL)?(newTriangle(ne, ne2,be4)):(NULL);
+#ifdef USE_PER_TRIANGLE_COLORS
+ Triangle *nt1 = (e->t1 != NULL) ? (newTriangle(ne1, ne, be1, e->t1->getColor())) : (NULL);
+ Triangle *nt2 = (e->t2 != NULL) ? (newTriangle(ne, ne2, be4, e->t2->getColor())) : (NULL);
+#else
+ Triangle *nt1 = (e->t1 != NULL) ? (newTriangle(ne1, ne, be1)) : (NULL);
+ Triangle *nt2 = (e->t2 != NULL) ? (newTriangle(ne, ne2, be4)) : (NULL);
+#endif
 
  ne->t1 = nt1; ne->t2 = nt2;
  if (ne1 != NULL) {ne1->t1 = e->t1; ne1->t2 = nt1;}
@@ -1916,8 +1980,14 @@ Vertex *Basic_TMesh::splitTriangle(Triangle *t, Point *p, bool copy_mask)
  Edge *ne1 = newEdge(v, v1);
  Edge *ne2 = newEdge(v, v2);
  Edge *ne3 = newEdge(v, v3);
+#ifdef USE_PER_TRIANGLE_COLORS
+ Triangle *nt1 = newTriangle(ne2, t->e3, ne3, t->getColor());
+ Triangle *nt2 = newTriangle(ne3, t->e1, ne1, t->getColor());
+#else
  Triangle *nt1 = newTriangle(ne2, t->e3,ne3);
  Triangle *nt2 = newTriangle(ne3, t->e1,ne1);
+#endif
+
  t->e3->replaceTriangle(t, nt1);
  t->e1->replaceTriangle(t, nt2);
  t->replaceEdge(t->e3, ne2);

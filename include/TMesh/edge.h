@@ -209,6 +209,14 @@ class Edge
  //! negative if more than flat (concave). Returns DBL_MAX if edge is on boundary.
  coord getConvexity() const;
 
+ //! Returns TRUE if edge has two incident triangles forming a flat and convex quadrilateral.
+ bool isFlatAndConvexQuadrilateral() const;
+
+ //! Returns the squared sin of the minimum angle in e->t1 and e->t2 if edge
+ //! has two complanar adjacent triangles forming a properly convex quadrilateral.
+ //! Returns DBL_MAX otherwise.
+ coord delaunayMinAngleSquaredSin() const;
+
  // FUNCTIONS BELOW THIS LINE MAY RETURN APPROXIMATED/NOT ROBUST RESULTS EVEN WHEN USING RATIONALS
 
 

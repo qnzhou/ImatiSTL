@@ -52,45 +52,46 @@ namespace T_MESH
 //
 //////////////////////////////////////////////////////
 
-class edgeHeap : abstractHeap
-{
-	double(*costFunction)(Edge *);
-	Edge **edges;
-
-public:
-
-	class EC_Cost
+	class edgeHeap : public abstractHeap
 	{
+	protected:
+		coord(*costFunction)(Edge *);
+		Edge **edges;
+
 	public:
-		int index;
-		double cost;
 
-		EC_Cost(Edge *e, int i) : index(i) {}
+		class EC_Cost
+		{
+		public:
+			int index;
+			coord cost;
+
+			EC_Cost(Edge *e, int i) : index(i) {}
+		};
+
+		static inline const coord getEdgeCost(Edge *e) { return ((EC_Cost *)e->info)->cost; }
+		static inline void setEdgeCost(Edge *e, coord d) { ((EC_Cost *)e->info)->cost = d; }
+		static inline int getEdgeIndex(Edge *e) { return ((EC_Cost *)e->info)->index; }
+		static inline void setEdgeIndex(Edge *e, int i) { ((EC_Cost *)e->info)->index = i; }
+		static inline void createEdgeCost(Edge *e, int i) { e->info = new EC_Cost(e, i); }
+		static inline void clearEdgeCost(Edge *e) { delete((EC_Cost *)e->info); e->info = NULL; }
+
+		edgeHeap(List&, coord(*cf)(Edge *));	// constructor
+		~edgeHeap();			// destructor
+
+		// Insertion of a new element
+		inline void push(Edge *e);
+
+		// Removal of the first element
+		inline Edge *popHead() { return edges[(int)removeHead()]; }
+
+		// Emptiness check
+		inline int isEmpty() { return (numels == 0); }
+
+		void remove(Edge *);		// Remove one element
+		void update(Edge *);		// Update one element
+		int compare(const void *, const void *);	// Comparison for sorting
 	};
-
-	static inline double getEdgeCost(Edge *e) { return ((EC_Cost *)e->info)->cost; }
-	static inline void setEdgeCost(Edge *e, double d) { ((EC_Cost *)e->info)->cost = d; }
-	static inline int getEdgeIndex(Edge *e) { return ((EC_Cost *)e->info)->index; }
-	static inline void setEdgeIndex(Edge *e, int i) { ((EC_Cost *)e->info)->index = i; }
-	static inline void createEdgeCost(Edge *e, int i) { e->info = new EC_Cost(e, i); }
-	static inline void clearEdgeCost(Edge *e) { delete((EC_Cost *)e->info); e->info = NULL; }
-
-	edgeHeap(List&, double(*cf)(Edge *));	// constructor
-	~edgeHeap();			// destructor
-
-	// Insertion of a new element
-	inline void push(Edge *e);
-
-	// Removal of the first element
-	inline Edge *popHead() { return edges[(j_voidint)removeHead()]; }
-
-	// Emptiness check
-	inline int isEmpty() { return (numels == 0); }
-
-	void remove(Edge *);		// Remove one element
-	void update(Edge *);		// Update one element
-	int compare(const void *, const void *);	// Comparison for sorting
-};
 
 
 //////////////////////////////////////////////////////
@@ -110,11 +111,11 @@ public:
 
 class dynamicEdgeHeap : abstractHeap
 {
-	double(*costFunction)(Edge *);
+	coord(*costFunction)(Edge *);
 
 public:
 
-	dynamicEdgeHeap(int n, double(*cf)(Edge *)) : abstractHeap(n) { costFunction = cf; };
+	dynamicEdgeHeap(int n, coord(*cf)(Edge *)) : abstractHeap(n) { costFunction = cf; };
 
 	void push(Edge *);
 	inline Edge *popHead() { return (Edge *)removeHead(); }

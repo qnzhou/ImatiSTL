@@ -5,192 +5,6 @@
 
 using namespace IMATI_STL;
 
-//#include "tetgen.h"
-//
-///* Construct a new tetrahedrization starting from a bounding triangle mesh */
-///* The triangle mesh is assumed to be closed and non self-intersecting.    */
-///* No assumption is made about the topology of the triangle mesh, which    */
-///* may be even made of several connected components.                       */
-///* If quality is 'true' some more vertices may be inserted to generate     */
-///* well-shaped tets.                                                       */
-///* If no_erosion is 'true', after contraint insertion external tetrahedra  */
-///* are not removed.                                                        */
-//
-//void constructCDT(TriMesh& tin)
-//{
-//	ImatiSTL::useRationals(true);
-//
-//	int num_vertices = tin.V.numels();
-//	int num_triangles = tin.T.numels();
-//	coord *vertices = new coord[num_vertices * 3];
-//	int *triangles = new int[num_triangles * 3];
-//
-//	/* Copy triangulation vertices to tetgen data structures */
-//	int i, t;
-//	tetgenio in, out;
-//	tetgenio::polygon *pol;
-//
-//	Node *n;
-//	Vertex *v;
-//	Triangle *tt;
-//	i = 0; FOREACHVVVERTEX((&(tin.V)), v, n)
-//	{
-//		vertices[i * 3] = v->x;
-//		vertices[i * 3 + 1] = v->y;
-//		vertices[i * 3 + 2] = v->z;
-//		v->info = (void *)i;
-//		i++; 
-//	}
-//
-//	i = 0; FOREACHVTTRIANGLE((&(tin.T)), tt, n)
-//	{
-//		triangles[i++] = (int)(tt->v1()->info);
-//		triangles[i++] = (int)(tt->v2()->info);
-//		triangles[i++] = (int)(tt->v3()->info);
-//	}
-//
-//	in.numberofpoints = num_vertices;
-//	in.pointlist = vertices;
-//	in.numberoffacets = num_triangles;
-//	in.facetlist = new tetgenio::facet[in.numberoffacets];
-//
-//	for (i = 0; i<num_triangles; i++)
-//	{
-//		in.init(&(in.facetlist[i]));
-//		in.facetlist[i].numberofpolygons = 1;
-//		in.facetlist[i].polygonlist = new tetgenio::polygon[1];
-//		pol = &(in.facetlist[i].polygonlist[0]);
-//		in.init(pol);
-//		pol->numberofvertices = 3;
-//		pol->vertexlist = new int[3];
-//		pol->vertexlist[0] = triangles[i * 3];
-//		pol->vertexlist[1] = triangles[i * 3 + 1];
-//		pol->vertexlist[2] = triangles[i * 3 + 2];
-//	}
-//
-//	/* Run TetGen to create Delaunay tetrahedrization of vertices */
-//	tetrahedralize("zpVVYYO0T0", &in, &out, NULL, NULL);
-//	
-//	/* Invert tets to make them positively oriented */
-//	for (i = 0; i<out.numberoftetrahedra; i++)
-//	{
-//		t = out.tetrahedronlist[i * 4]; out.tetrahedronlist[i * 4] = out.tetrahedronlist[i * 4 + 1]; out.tetrahedronlist[i * 4 + 1] = t;
-//	}
-//
-//	in.pointlist = NULL; // To avoid TetGen to deallocate 'vertices' when deleting 'in'
-//
-//	delete [] vertices;
-//	delete[] triangles;
-//}
-
-//// true if 'fill'. false if thicken.
-//bool fillOrThickenComponent(TriMesh& sheet, coord& thickness)
-//{
-//	double A = sheet.area();
-//	sheet.fillSmallBoundaries();
-//	double B = sheet.area() - A;
-//	B *= 10; // Coefficient >= 1: 1 = (nearly) everything is hole-filled; infinity = everything is thickened.
-//	if (B < A) { sheet.deselectTriangles(); return true; }
-//	sheet.removeSelectedTriangles();
-//	sheet.toThinShell(thickness);
-//	return false;
-//}
-//
-//void fillOrThicken(TriMesh& sheets, coord& thickness)
-//{
-//	int filled = 0, thickened = 0;
-//	TriMesh *comp, *solidcomps = new TriMesh;
-//	while ((comp = (TriMesh *)sheets.split()) != NULL)
-//	{
-//		if (fillOrThickenComponent(*comp, thickness)) filled++; else thickened++;
-//		solidcomps->moveMeshElements(comp);
-//	}
-//	sheets.moveMeshElements(solidcomps);
-//	printf("******* %d filled and %d thickened\n", filled, thickened);
-//}
-//
-//coord jitterCoord(coord& c)
-//{
-//	char floatver[32];
-//	float x;
-//
-//	sprintf(floatver, "%f", TMESH_TO_FLOAT(c));
-//	sscanf(floatver, "%f", &x);
-//
-//	return coord(x);
-//}
-//
-//
-//void safeQuantize(TriMesh& tin)
-//{
-//	Vertex *v, *v1, *v2;
-//	Node *n;
-//	Point p, cp, nor1, nor2;
-//	Triangle *t;
-//
-//	FOREACHVVVERTEX((&(tin.V)), v, n)
-//		v->info = new Point(jitterCoord(v->x) - v->x, jitterCoord(v->y) - v->y, jitterCoord(v->z) - v->z);
-//
-//	//int s=0;
-//	//List tris(tin.T);
-//	//tin.deselectTriangles(); tin.invertSelection();
-//
-//	//printf("\n");
-//	//while ((t=(Triangle *)tris.popHead())!=NULL)
-//	//{
-//	//	UNMARK_VISIT(t);
-//	//	printf("\r%d remaining (%d splits done)                 ", tris.numels(), s); fflush(stdout);
-//	//	nor1 = t->getVector();
-//	//	v = t->v1(); (*v) += (*((Point *)v->info));
-//	//	v = t->v2(); (*v) += (*((Point *)v->info));
-//	//	v = t->v3(); (*v) += (*((Point *)v->info));
-//	//	nor2 = t->getVector();
-//	//	v = t->v1(); (*v) -= (*((Point *)v->info));
-//	//	v = t->v2(); (*v) -= (*((Point *)v->info));
-//	//	v = t->v3(); (*v) -= (*((Point *)v->info));
-//	//	if ((nor1*nor2) < 0)
-//	//	{
-//	//		Edge *e = t->getLongestEdge();
-//	//		v1 = e->v1; v2 = e->v2;
-//	//		v = t->oppositeVertex(e);
-//	//		p = (*v) + (*((Point *)v->info));
-//	//		cp = p.projection(v1, v2);
-//	//		if ((((*v1) - cp)*((*v2) - cp)) > 0) { ImatiSTL::warning("wrong projection\n"); cp = e->getMidPoint(); }
-//	//		Vertex *nv = tin.splitEdge(e, &cp);
-//	//		nv->info = new Point(p - cp);
-//	//		s++;
-//	//		if (!e->isOnBoundary())
-//	//		{
-//	//			e = (Edge *)((t == e->t1) ? (tin.E.head()->data) : (tin.E.head()->next()->data));
-//	//			t = e->t1; if (t != NULL && !IS_VISITED(t)) { tris.appendTail(t); MARK_VISIT(t); }
-//	//			t = e->t2; if (t != NULL && !IS_VISITED(t)) { tris.appendTail(t); MARK_VISIT(t); }
-//	//		}
-//	//	}
-//	//}
-//
-//	//printf("\n");
-//
-//
-//	FOREACHVVVERTEX((&(tin.V)), v, n)
-//	{
-//		(*v) += (*((Point *)v->info)); delete ((Point *)v->info); v->info = NULL;
-//	}
-//
-//	ImatiSTL::useRationals(false);
-//
-//	tin.E.sort(edgeCompare);
-//	Edge *e;
-//	for (n = tin.E.tail(); n != NULL; n = n->prev())
-//	{
-//		e = (Edge *)n->data;
-//		if (e->overlaps()) e->swap();
-//	}
-//
-//	tin.removeDegenerateTriangles();
-//	tin.rebuildConnectivity();
-//	tin.removeRedundantVertices();
-//}
-
 void usage()
 {
  printf("\n%s V%s - by %s\n------\n", ImatiSTL::app_name, ImatiSTL::app_version, ImatiSTL::app_authors);
@@ -204,7 +18,7 @@ void usage()
  printf("  Option '-o val' produces an offset of the input at radius 'val'.\n");
  printf("  Option '-f' fills surface holes before starting.\n");
  printf("  Option '-q' quantizes coordinates within a grid_size^3 grid before starting.\n");
- printf("  Option '-s' just saves the output STL file without modifications.\n");
+ printf("  Option '-s' just saves the output file without modifications.\n");
  printf("  Option '-g' makes the algorithm remesh the input within a uniform grid whose\n");
  printf("  size is 'grid_size'.\n");
  printf("  Option '-j' = output files in OFF format insted of STL\n");
@@ -322,8 +136,22 @@ int main(int argc, char *argv[])
 
  // The loader automatically reconstructs a manifold triangle connectivity
  if (tin.load(infilename) != 0) ImatiSTL::error("Can't open file.\n");
+
  tin.rebuildConnectivity();
  tin.printReport();
+
+ //Node *n;
+ //Triangle *t;
+ //tin.deselectTriangles();
+ //FOREACHVTTRIANGLE((&tin.T), t, n) if (t->getColor()==DEFAULT_TRIANGLE_COLOR)
+ //{
+	// tin.selectConnectedComponent(t);
+	// Node *m;
+	// uint32_t col = Triangle::random_color();
+	// FOREACHVTTRIANGLE((&tin.T), t, m) if (IS_VISITED(t)) {
+	//	 t->setColor(col); UNMARK_VISIT(t);
+	// }
+ //}
 
  if (!justsave)
  {
@@ -377,14 +205,14 @@ int main(int argc, char *argv[])
 	   do
 	   {
 		printf("ITERATION %d\n", iteration++);
-		tin.coordBackApproximation();	// When iterating, this ensures that the process does not slow down too much
+		tin.safeCoordBackApproximation();	// When iterating, this ensures that the process does not slow down too much
 		TriMesh *dangling = tin.computeOuterHull(debug, timeout_secs);
 		n = dangling->removeSmallestComponents(epsilon_area); if (n) printf("%d small dangling shells removed\n", n);
 		n = tin.removeSmallestComponents(epsilon_area); if (n) printf("%d small solid shells removed\n", n);
 		n = dangling->T.numels();
 
-		tin.delaunizeFlatAreas(); tin.collapseShortEdges(epsilon_squelen);
-		dangling->delaunizeFlatAreas(); dangling->collapseShortEdges(epsilon_squelen);
+		tin.removeRedundantVertices(); tin.delaunizeFlatAreas();
+		dangling->removeRedundantVertices(); dangling->delaunizeFlatAreas();
 
 		if (n != 0 && iteration<4) { dangling->toThinShell(thickness); tin.moveMeshElements(dangling); }
 		tin.deselectTriangles();
@@ -394,9 +222,11 @@ int main(int argc, char *argv[])
    {
 	   if (Shelled_Exact) tin.toThinShell(thickness);
 	   TriMesh *dangling = tin.computeOuterHull(debug, timeout_secs);
+
 	   if (dangling->T.numels() && dangling->area() > tin.area()*1.0e-9)
 	   {
 		   ImatiSTL::warning("Dangling open surfaces remained that do not bound any solid. These are saved to '%s'.\n", dglfilename);
+		   if (!eff_output) dangling->safeCoordBackApproximation();
 		   dangling->save(dglfilename);
 	   }
    }
@@ -418,6 +248,16 @@ int main(int argc, char *argv[])
 	   if (tin.boundaries() || !tin.meshclean()) ImatiSTL::warning("STLFix could not fix everything.\n", sc);
    }
  }
+
+ //if (!eff_output)
+ //{
+	// ImatiSTL::useRationals(true);
+	// tin.delaunizeFlatAreas();
+	// tin.safeCoordBackApproximation();
+	// ImatiSTL::useRationals(false);
+	// ImatiSTL::info("Checking output mesh ...\n");
+	// if (tin.selectIntersectingTriangles(50U, true) != 0) ImatiSTL::warning("\n *********** ASCII conversion introduced new intersections !!! *********************** \n\n");
+ //}
 
  ImatiSTL::info("Saving output mesh ...\n");
  tin.save(outfilename);

@@ -89,9 +89,6 @@ class PM_Rational
 		int64_t _val;		// value. Might contain either a double or a pointer to mpq_class.
 		bool _whv;			// Which value type is stored here. 1=rational, 0=double
 
-		inline bool isOfRationalType() const { return _whv; }
-		inline bool isOfDoubleType() const { return !_whv; }
-
 		inline static int64_t d2int64t(double a) { return *((int64_t *)((void *)(&a))); }
 		inline static double& int64t2d(const int64_t& a) { return *((double *)((void *)(&a))); }
 
@@ -106,15 +103,24 @@ class PM_Rational
 
 	public:
 		PM_Rational() : _whv(0) {} // Undetermined double
-		PM_Rational(const EXACT_NT& a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(EXACT_NT_TO_DOUBLE(a))); }
-		PM_Rational(float a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
-		PM_Rational(double a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
-		PM_Rational(int a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
+		//PM_Rational(const EXACT_NT& a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(EXACT_NT_TO_DOUBLE(a))); }
+		//PM_Rational(float a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
+		//PM_Rational(double a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
+		//PM_Rational(int a) { _whv = use_rationals; _val = (_whv) ? ((int64_t)new EXACT_NT(a)) : (d2int64t(a)); }
+		//PM_Rational(const PM_Rational& a) { _whv = a._whv; _val = (_whv) ? ((int64_t)new EXACT_NT(a.getVal())) : (a._val); }
 
+		PM_Rational(const EXACT_NT& a) { _whv = 1; _val = (int64_t)new EXACT_NT(a); }
+		PM_Rational(float a) { _whv = 0; _val = d2int64t(a); }
+		PM_Rational(double a) { _whv = 0; _val = d2int64t(a); }
+		PM_Rational(int a) { _whv = 0; _val = d2int64t(a); }
 		PM_Rational(const PM_Rational& a) { _whv = a._whv; _val = (_whv) ? ((int64_t)new EXACT_NT(a.getVal())) : (a._val); }
+
 		~PM_Rational() { if (_whv) delete ((EXACT_NT *)_val); }
 
 		inline EXACT_NT toRational() const { return (_whv) ? (getVal()) : (EXACT_NT(getDVal())); }
+
+		inline bool isOfRationalType() const { return _whv; }
+		inline bool isOfDoubleType() const { return !_whv; }
 
 		// The following toSomething() functions may cause rounding. Use with caution !
 		inline double toDouble() const { return ((_whv) ? (EXACT_NT_TO_DOUBLE(getVal())) : (getDVal())); }
@@ -134,6 +140,7 @@ class PM_Rational
 
 		PM_Rational& operator=(const PM_Rational& a);
 		void setFromRational(const EXACT_NT& a);
+		void setFromDouble(double a);
 
 		bool operator<(const PM_Rational& a) const;
 		bool operator>(const PM_Rational& a) const;
@@ -142,6 +149,10 @@ class PM_Rational
 
 		friend PM_Rational orient2D(const PM_Rational& px, const PM_Rational& py, const PM_Rational& qx, const PM_Rational& qy, const PM_Rational& rx, const PM_Rational& ry);
 		friend PM_Rational orient3D(const class Point *t, const class Point *a, const class Point *b, const class Point *c);
+		friend PM_Rational operator-(const PM_Rational& a);
+		friend PM_Rational ceil(const PM_Rational& a);
+		friend PM_Rational floor(const PM_Rational& a);
+		friend PM_Rational round(const PM_Rational& a);
 };
 
 PM_Rational operator-(const PM_Rational& a);
@@ -152,12 +163,15 @@ inline PM_Rational fabs(const PM_Rational& a) {	if (a < 0) return -a; else retur
 
 /**************** I/O operators ****************/
 
-inline std::ostream & operator<<(std::ostream &o, const PM_Rational& c) { return o << c.toRational(); }
-inline std::istream & operator>>(std::istream &i, PM_Rational& c) { EXACT_NT a; i >> a; c.setFromRational(a); return i; }
+inline std::ostream & operator<<(std::ostream &o, const PM_Rational& c) { /*return o << c.toRational(); */return o << EXACT_NT_NUMERATOR((&c.toRational())) << "/" << EXACT_NT_DENOMINATOR((&c.toRational())); }
+inline std::istream & operator>>(std::istream &i, PM_Rational& c) { EXACT_NT a; i >> a; double b = EXACT_NT_TO_DOUBLE(a); if (PM_Rational(b) == PM_Rational(a)) c.setFromDouble(b); else c.setFromRational(a); return i; }
 
 #define TMESH_TO_DOUBLE(x) ((x).toDouble())
 #define TMESH_TO_FLOAT(x) ((x).toFloat())
 #define TMESH_TO_INT(x) ((x).toInt())
+
+// The following should be changed... but the methods should be reimplemented to take care of the particular case. Seems to slow down too much...
+#define TMESH_MAX_COORDINATE DBL_MAX
 
 #else
 
@@ -166,6 +180,8 @@ typedef double PM_Rational;
 #define TMESH_TO_DOUBLE(x) (x)
 #define TMESH_TO_FLOAT(x) ((float)(x))
 #define TMESH_TO_INT(x) ((int)(x))
+
+#define TMESH_MAX_COORDINATE DBL_MAX
 
 #endif
 

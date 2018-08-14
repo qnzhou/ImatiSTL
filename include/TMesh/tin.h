@@ -36,6 +36,12 @@
 namespace T_MESH
 {
 
+#ifdef USE_PER_TRIANGLE_COLORS
+#ifndef DEFAULT_TRIANGLE_COLOR
+#define DEFAULT_TRIANGLE_COLOR 0x808080ff // Grey
+#endif
+#endif
+
 //! Basic_TMesh
 
 //! This class represents a manifold and oriented triangle mesh.
@@ -150,12 +156,12 @@ class Basic_TMesh
 
 		int load(const char *filename, const bool update = 1);
 		int loadIV(const char *);		//!< Loads IV
-		int loadVRML1(const char *);		//!< Loads VRML 1.0
+		int loadVRML1(const char *);	//!< Loads VRML 1.0
 		int loadOFF(const char *);		//!< Loads OFF
 		int loadEFF(const char *);		//!< Loads EFF
 		int loadPLY(const char *);		//!< Loads PLY
-		int loadVerTri(const char *);		//!< Loads VER-TRI
-		int loadVRML2(const char *);		//!< Loads VRML 2.0
+		int loadVerTri(const char *);	//!< Loads VER-TRI
+		int loadVRML2(const char *);	//!< Loads VRML 2.0
 		int loadOBJ(const char *);		//!< Loads OBJ
 		int loadSTL(const char *);		//!< Loads STL
 
@@ -185,7 +191,11 @@ class Basic_TMesh
 		TMESH_VIRTUAL Edge *		newEdge(Vertex *, Vertex *);
 		TMESH_VIRTUAL Edge *		newEdge(Edge *);
 		TMESH_VIRTUAL Triangle *	newTriangle();
+#ifdef USE_PER_TRIANGLE_COLORS
+		TMESH_VIRTUAL Triangle *	newTriangle(Edge *, Edge *, Edge *, uint32_t rgba = DEFAULT_TRIANGLE_COLOR);
+#else
 		TMESH_VIRTUAL Triangle *	newTriangle(Edge *, Edge *, Edge *);
+#endif
 		TMESH_VIRTUAL Basic_TMesh *	newObject() const { return new Basic_TMesh(); }
 		TMESH_VIRTUAL Basic_TMesh *	newObject(const Basic_TMesh *tm, const bool ci = false) const { return new Basic_TMesh(tm, ci); }
 		TMESH_VIRTUAL Basic_TMesh *   newObject(const char *s) const { return new Basic_TMesh(s); }
@@ -211,6 +221,9 @@ class Basic_TMesh
 		int savePLY(const char *, bool ascii = 1); //!< Saves PLY 1.0 (ascii or binary)
 		int saveVerTri(const char *);		//!< Saves Ver-Tri
 
+#ifdef USE_PER_TRIANGLE_COLORS
+		int saveVRML1(const char *);
+#else
 		//! Saves the triangle mesh to a VRML 1.0 file.
 		//! The value of 'mode' specifies whether to use additional
 		//! information attached to mesh elements in order to assign
@@ -225,7 +238,7 @@ class Basic_TMesh
 		//! IO_CSAVE_PERVERTEX_INDEXED assigns one of five base colors to each vertex
 		//! depending on the value of its 'mask' field.
 		int saveVRML1(const char *, const int mode = 0);
-
+#endif
 
 		//! Append another triangle mesh to the existing one.
 
@@ -266,7 +279,11 @@ class Basic_TMesh
 		//! Returns the newly created Triangle. If e1, e2 and e3
 		//! are not suitable for creating a properly oriented and
 		//! manifold triangle, the creation fails and NULL is returned.
-		TMESH_VIRTUAL Triangle * CreateTriangle(Edge *e1, Edge *e2, Edge *e3);		
+#ifdef USE_PER_TRIANGLE_COLORS
+		TMESH_VIRTUAL Triangle * CreateTriangle(Edge *e1, Edge *e2, Edge *e3, uint32_t rgba = DEFAULT_TRIANGLE_COLOR);
+#else
+		TMESH_VIRTUAL Triangle * CreateTriangle(Edge *e1, Edge *e2, Edge *e3);
+#endif
 
 
 		//! Creates an arbitrarily oriented Triangle bounded by three existing mesh edges.
@@ -274,7 +291,11 @@ class Basic_TMesh
 		//! Returns the newly created Triangle. If either e1, e2 or e3
 		//! has already two incident triangles, the creation fails and NULL is returned.
 		//! This method assumes that e1, e2 and e3 are incident to exactly three vertices.
-		TMESH_VIRTUAL Triangle * CreateUnorientedTriangle(Edge *, Edge *, Edge *);	
+#ifdef USE_PER_TRIANGLE_COLORS
+		TMESH_VIRTUAL Triangle * CreateUnorientedTriangle(Edge *e1, Edge *e2, Edge *e3, uint32_t rgba = DEFAULT_TRIANGLE_COLOR);
+#else
+		TMESH_VIRTUAL Triangle * CreateUnorientedTriangle(Edge *e1, Edge *e2, Edge *e3);
+#endif
 
 
 		//! Creates a newEdge 'e' and an oriented Triangle bounded by 'e', 'e1' and 'e2'.
@@ -346,7 +367,8 @@ class Basic_TMesh
 		int removeUnlinkedElements() { return removeTriangles() + removeEdges() + removeVertices(); }
 
 		//! Removes all the vertices that can be deleted without changing the geometric realization. O(N).
-		int removeRedundantVertices();
+		//! If 'constrain_singularities' is TRUE, duplicated vertices are not removed.
+		int removeRedundantVertices(bool constrain_singularities =false);
 
 		/////////////////////////////////////////////////////////////////////////////
 		//
@@ -531,6 +553,9 @@ class Basic_TMesh
 		//! Bounding box longest diagonal. O(N).
 		double bboxLongestDiagonal() { Point a, b; getBoundingBox(a, b); return a.distance(b); }
 
+		//! Bounding box longest side. O(N).
+		coord bboxLongestSide() { Point a, b; getBoundingBox(a, b); b -= a; return MAX(b.x, MAX(b.y, b.z)); }
+
 		//! Approximate bounding ball radius. O(N).
 		double getBoundingBallRadius() const;
 
@@ -695,7 +720,7 @@ class Basic_TMesh
 		//! Selects all the triangles that unproperly intersect other parts of
 		//! the mesh and return their number. The parameter 'tris_per_cell'
 		//! determines the depth of the recursive space subdivision used to keep
-		//! the complexity under a resonable threchold. The default value is safe
+		//! the complexity under a resonable threshold. The default value is safe
 		//! in most cases.
 		//! if 'justproper' is true, coincident edges and vertices are not regarded
 		//! as intersections even if they are not common subsimplexes.
