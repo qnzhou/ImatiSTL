@@ -77,7 +77,7 @@ class Q_matrix : public SymMatrix4x4
  Point getOptimalPoint(Edge *);		 // Return the new position
  Point bestAmongMidAndEndpoints(Edge *); // Return best of v1, v2 or mid
  int checkCollapse(Edge *, Point *);	 // Check for mesh inversion
- double getError(Point *, Edge * =NULL); // Compute the error at a point
+ coord getError(Point *, Edge * =NULL); // Compute the error at a point
 };
 
 #endif // SIMPLIFICATION_H

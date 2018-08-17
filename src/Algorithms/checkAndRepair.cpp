@@ -265,6 +265,9 @@ int Basic_TMesh::mergeCoincidentEdges()
 	Edge *e;
 	FOREACHEDGE(e, n) if (e->isOnBoundary()) { MARK_BIT(e->v1, 5); MARK_BIT(e->v2, 5); }
 
+	void **old_info = new void *[V.numels()];
+	int i = 0; FOREACHVERTEX(v, n) old_info[i++] = v->info;
+
 	FOREACHVERTEX(v, n)
 	{
 		if ((*v) != (*pv) || !IS_BIT(v,5)) pv = v;
@@ -282,6 +285,8 @@ int Basic_TMesh::mergeCoincidentEdges()
 		if (e->v2->info != e->v2) e->v2 = (Vertex *)e->v2->info;
 		e->v1->e0 = e->v2->e0 = e;
 	}
+
+	i = 0; FOREACHVERTEX(v, n) v->info = old_info[i++];
 	int rv = removeVertices();
 
 	// At this point the mesh should no longer have duplicated vertices, but may have duplicated edges
@@ -324,7 +329,7 @@ bool Basic_TMesh::fixConnectivity(){ //!< AMF_ADD 1.1>
 
 ///// Recompute triangle connectivity //////////
 
-bool Basic_TMesh::rebuildConnectivity(bool fixconnectivity) //!< AMF_CHANGE 1.1>
+bool Basic_TMesh::rebuildConnectivity(bool fixconnectivity)
 {
  if (V.numels() == 0) return false;
  V.sort(&xyzCompare);
@@ -358,11 +363,17 @@ bool Basic_TMesh::rebuildConnectivity(bool fixconnectivity) //!< AMF_CHANGE 1.1>
  FOREACHVERTEX(v, n) { v->e0 = NULL; var[i] = new ExtVertex(v); v->info = (void *)i; i++; }
  int nt = T.numels();
  int *triangles = new int[nt*3];
+#ifdef USE_PER_TRIANGLE_COLORS
+ uint32_t *packed_colors = new uint32_t[nt];
+#endif
  i = 0; FOREACHTRIANGLE(t, n)
  {
   triangles[i * 3] = (j_voidint)t->v1()->info;
   triangles[i*3+1] = (j_voidint)t->v2()->info;
   triangles[i*3+2] = (j_voidint)t->v3()->info;
+#ifdef USE_PER_TRIANGLE_COLORS
+  packed_colors[i] = t->getColor();
+#endif
   i++;
  }
  T.freeNodes();
@@ -373,12 +384,21 @@ bool Basic_TMesh::rebuildConnectivity(bool fixconnectivity) //!< AMF_CHANGE 1.1>
   v1 = triangles[i*3];
   v2 = triangles[i*3+1];
   v3 = triangles[i*3+2];
-  if (v1!=v2 && v2!=v3 && v1!=v3) CreateIndexedTriangle(var, v1, v2, v3);
+  if (v1 != v2 && v2 != v3 && v1 != v3)
+  {
+	  t = CreateIndexedTriangle(var, v1, v2, v3);
+#ifdef USE_PER_TRIANGLE_COLORS
+	  if (t!=NULL) t->setColor(packed_colors[i]);
+#endif
+  }
  }
 
  for (i=0; i<V.numels(); i++) delete(var[i]);
  delete var;
  delete [] triangles;
+#ifdef USE_PER_TRIANGLE_COLORS
+ delete [] packed_colors;
+#endif
 
  if(fixconnectivity)	return fixConnectivity();
  else					return true;
@@ -466,7 +486,7 @@ int Basic_TMesh::removeDegenerateTriangles()
 	Node *n;
 	Triangle *t;
 	Edge *e, *e1, *e2, *e3, *e4;
-	Vertex *ov1, *ov2, *splitvs[2];
+	Vertex *nv, *ov1, *ov2, *splitvs[2];
 	int nov;
 
 	List edges(E);
@@ -489,8 +509,8 @@ int Basic_TMesh::removeDegenerateTriangles()
 			e2 = (e->t1 != NULL) ? (e->t1->prevEdge(e)) : NULL;
 			e3 = (e->t2 != NULL) ? (e->t2->nextEdge(e)) : NULL;
 			e4 = (e->t2 != NULL) ? (e->t2->prevEdge(e)) : NULL;
-			splitEdge(e, splitvs[1]);
-			if (nov > 1) splitEdge(e, splitvs[0]);
+			nv = splitEdge(e, splitvs[1]); if (nv!=NULL) nv->info = splitvs[1]->info;
+			if (nov > 1) { nv = splitEdge(e, splitvs[0]); if (nv!=NULL) nv->info = splitvs[0]->info; }
 			e = e1;  if (e != NULL && !IS_BIT(e, 5)) { edges.appendTail(e); MARK_BIT(e, 5); }
 			e = e2;  if (e != NULL && !IS_BIT(e, 5)) { edges.appendTail(e); MARK_BIT(e, 5); }
 			e = e3;  if (e != NULL && !IS_BIT(e, 5)) { edges.appendTail(e); MARK_BIT(e, 5); }
@@ -501,7 +521,7 @@ int Basic_TMesh::removeDegenerateTriangles()
 	int nc = 0;	// Num of collapses to remove needles
 
 	// Remove needles
-	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2))) if (e->collapse()) nc++;
+	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2))) if (e->collapseOnV1()) nc++;
 	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2)))
 	{
 		if (e->t1) unlinkTriangle(e->t1);
@@ -519,241 +539,6 @@ int Basic_TMesh::removeDegenerateTriangles()
 
 	return (nc)*((degn) ? (-1) : (1));
 }
-
-//int Basic_TMesh::removeDegenerateTriangles()
-//{
-//	Node *n;
-//	Triangle *t;
-//	Edge *e;
-//
-//	// Split caps
-//	E.sort(&edgeCompare);
-//	Vertex *ov1, *ov2;
-//	int nov;
-//	bool done;
-//
-//	do
-//	{
-//		done = false;
-//		FOREACHEDGE(e, n)
-//		{
-//			nov = 0;
-//			if (e->t1 != NULL && Point::pointInInnerSegment((ov1 = e->t1->oppositeVertex(e)), e->v1, e->v2)) nov++;
-//			if (e->t2 != NULL && Point::pointInInnerSegment((ov2 = e->t2->oppositeVertex(e)), e->v1, e->v2)) nov += 2;
-//			if (nov == 3 && ov1->squaredDistance(e->v1) < ov2->squaredDistance(e->v1)) { splitEdge(e, ov2); splitEdge(e, ov1); }
-//			else if (nov == 3 && ov2->squaredDistance(e->v1) < ov1->squaredDistance(e->v1)) { splitEdge(e, ov1); splitEdge(e, ov2); }
-//			else if (nov >= 2) splitEdge(e, ov2);
-//			else if (nov == 1) splitEdge(e, ov1);
-//			if (nov) done = true;
-//		}
-//	} while (done);
-//
-//	//FOREACHEDGE(e, n) multiSplitEdge(this, e);
-//
-//	int nc = 0;	// Num of collapses to remove needles
-//
-//	// Remove needles
-//	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2))) if (e->collapse()) nc++;
-//
-//	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2)))
-//	{
-//		if (e->t1) unlinkTriangle(e->t1);
-//		if (e->t2) unlinkTriangle(e->t2);
-//	}
-//	removeUnlinkedElements();
-//
-//	int degn = 0;
-//	FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) degn++;
-//	if (degn)
-//	{
-//		FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) MARK_VISIT(t); else UNMARK_VISIT(t);
-//	}
-//
-//	return (nc)*((degn) ? (-1) : (1));
-//}
-
-//int Basic_TMesh::removeDegenerateTriangles()
-//{
-//	Edge *e;
-//	Node *n;
-//	int nc = 0;	// Num of collapses to remove needles
-//	int ns = 0; // Num of swaps to remove internal caps
-//	int nr = 0; // Num of removals to remove boundary caps
-//
-//	// Remove needles
-//	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2))) if (e->collapse()) nc++;
-//
-//	// Swap or remove caps
-//	Point p, w1, w2;
-//	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) != (*e->v2)))
-//	{
-//		if (e->t1 != NULL)
-//		{
-//			p.setValue(e->t1->oppositeVertex(e));
-//			w1 = p - (*e->v1);
-//			w2 = p - (*e->v2);
-//			if (!w1.isNull() && !w2.isNull() && (w1*w2 < 0) && e->t1->isExactlyDegenerate())
-//			{
-//				if (e->t2 != NULL) { if (e->swap()) { ns++; continue; } }
-//				else { unlinkTriangle(e->t1); nr++; continue; }
-//			}
-//		}
-//		if (e->t2 != NULL)
-//		{
-//			p.setValue(e->t2->oppositeVertex(e));
-//			w1 = p - (*e->v1);
-//			w2 = p - (*e->v2);
-//			if (!w1.isNull() && !w2.isNull() && (w1*w2 < 0) && e->t2->isExactlyDegenerate())
-//			{
-//				if (e->t1 != NULL) { if (e->swap()) { ns++; continue; } }
-//				else { unlinkTriangle(e->t2); nr++; continue; }
-//			}
-//		}
-//	}
-//
-//	// Remove possible newly-introduced needles
-//	FOREACHEDGE(e, n) if (e->isLinked() && ((*e->v1) == (*e->v2))) if (e->collapse()) nc++;
-//
-//	removeUnlinkedElements();
-//
-//	Triangle *t;
-//	int degn = 0;
-//	FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) degn++;
-//	if (degn)
-//	{
-//		FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) MARK_VISIT(t); else UNMARK_VISIT(t);
-//	}
-//
-//	return (nc + ns + nr)*((degn) ? (-1) : (1));
-//}
-
-//int Basic_TMesh::removeDegenerateTriangles()
-//{
-// Triangle *t;
-// Node *n;
-// Edge *e;
-// int degn = 0, tcs = 0;
-//
-// if (TMesh::acos_tolerance > 0.0)
-// {
-//  int collapses, swaps;
-//  List todo, *vt;
-//
-//  do
-//  {
-//   collapses = swaps = 0;
-//
-//   FOREACHTRIANGLE(t, n) if (t->isDegenerate())
-//    {MARK_BIT(t, 5); todo.appendHead(t);}
-//   else UNMARK_BIT(t, 5);
-//
-//   while (todo.numels())
-//   {
-//    t = (Triangle *)todo.popHead();
-//	UNMARK_BIT(t, 5);
-//    if (t->isLinked())
-//    {
-//     if ((e = t->isCap()) != NULL)
-//     {
-//      if (e->isOnBoundary()) {unlinkTriangle(t); collapses++;}
-//      else if (e->swap())
-//      {
-//       if (e->t1->overlaps() || e->t2->overlaps() || e->t1->isCap() || e->t2->isCap()) e->swap(1);
-//       else
-//       {
-//        swaps++;
-//		if (!IS_BIT(e->t1, 5)) { MARK_BIT(e->t1, 5); todo.appendTail(e->t1); }
-//		if (!IS_BIT(e->t2, 5)) { MARK_BIT(e->t2, 5); todo.appendTail(e->t2); }
-//       }
-//      }
-//     }
-//     else if ((e = t->isNeedle()) != NULL)
-//     {
-//      vt = e->v2->VT();
-//      if (e->collapse())
-//      {
-//       collapses++;
-//       FOREACHVTTRIANGLE(vt, t, n)
-//	   if (t->isLinked() && !IS_BIT(t, 5)) { MARK_BIT(t, 5); todo.appendTail(t); }
-//      }
-//      else if (!e->isOnBoundary() && e->oppositeTriangle(t)->oppositeVertex(e)->valence() == 3)
-//      {
-//       if (e->oppositeTriangle(t)->nextEdge(e)->collapse())
-//       {
-//        MARK_BIT(t, 5); todo.appendHead(t);
-//        t = e->oppositeTriangle(t);
-//		if (t && !IS_BIT(t, 5)) { MARK_BIT(t, 5); todo.appendTail(t); }
-//        collapses++;
-//       }
-//      }
-//      delete(vt);
-//     }
-//    }
-//   }
-//
-//   if (collapses) removeUnlinkedElements();
-//   tcs += collapses; tcs += swaps;
-//  } while (collapses+swaps);
-//
-//  FOREACHTRIANGLE(t, n) if (t->isDegenerate()) degn++;
-//
-//  if (degn)
-//  {
-//   FOREACHTRIANGLE(t, n) if (t->isDegenerate()) MARK_VISIT(t); else UNMARK_VISIT(t);
-//  }
-// }
-// else /// This uses exact arithmetics to deduce that triangles are degenerate
-// {
-//  List triangles;
-//  const int MAX_ATTEMPTS = 10;
-//
-//  FOREACHTRIANGLE(t, n) t->info=0;
-//
-//  // BIT5 means that the triangle is in the list
-//  FOREACHTRIANGLE(t, n)
-//  {
-//   if (t->isExactlyDegenerate()) {triangles.appendTail(t); MARK_BIT(t, 5);}
-//   else UNMARK_BIT(t, 5);
-//  }
-//
-//  while ((t=(Triangle *)triangles.popHead())!=NULL)
-//  {
-//   UNMARK_BIT(t, 5);
-//   if (t->isLinked())
-//   {
-//	if (t->e1->isDegenerate()) {t->e1->collapse(); tcs++;}
-//    else if (t->e2->isDegenerate()) {t->e2->collapse(); tcs++;}
-//    else if (t->e3->isDegenerate()) {t->e3->collapse(); tcs++;}
-//    else if ((e=t->getLongestEdge())!=NULL)
-//    {
-//     if (e->swap())
-//	 {
-//	  tcs++;
-//	  t=e->t1;
-//	  if (t->isExactlyDegenerate() && !IS_BIT(t, 5) && ((int)t->info < MAX_ATTEMPTS))
-//	   {triangles.appendTail(t); MARK_BIT(t, 5); t->info = (void *)(((int)t->info)+1);}
-//	  t=e->t2;
-//	  if (t->isExactlyDegenerate() && !IS_BIT(t, 5) && ((int)t->info < MAX_ATTEMPTS))
-//	   {triangles.appendTail(t); MARK_BIT(t, 5); t->info = (void *)(((int)t->info)+1);}
-//	 }
-//    }
-//   }
-//  }
-//
-//  removeUnlinkedElements();
-//
-//  FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) degn++;
-//  if (degn)
-//  {
-//   FOREACHTRIANGLE(t, n) if (t->isExactlyDegenerate()) MARK_VISIT(t); else UNMARK_VISIT(t);
-//  }
-// }
-//
-// if (degn) tcs=-tcs;
-// if (tcs<0) TMesh::info("removeDegenerateTriangles: %d degeneracies could not be removed and have been selected\n",degn);
-// return tcs;
-//}
-
 
 bool Basic_TMesh::strongDegeneracyRemoval(int max_iters)
 {

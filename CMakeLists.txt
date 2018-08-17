@@ -80,7 +80,7 @@ SET(IMATISTL_SRC
     )
 
 SET(KERNEL_SRC
-    ${PROJECT_SOURCE_DIR}/src/Kernel/orientation.c
+    ${PROJECT_SOURCE_DIR}/src/Kernel/orientation.cpp
     ${PROJECT_SOURCE_DIR}/src/Kernel/coordinates.cpp
     ${PROJECT_SOURCE_DIR}/src/Kernel/graph.cpp
     ${PROJECT_SOURCE_DIR}/src/Kernel/heap.cpp
@@ -92,7 +92,7 @@ SET(KERNEL_SRC
     )
 
 SET(MESHFIX_SRC
-    #${PROJECT_SOURCE_DIR}/src/MeshFix/meshfix.cpp 
+    #${PROJECT_SOURCE_DIR}/src/MeshFix/meshfix.cpp
     )
 
 SET(TMESH_SRC

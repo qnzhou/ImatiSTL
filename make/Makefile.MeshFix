@@ -1,6 +1,6 @@
 egg_TARGET := meshfix
 egg_SOURCES := meshfix.cpp
-egg_SOURCE_PATH := ../src/TMesh/
+egg_SOURCE_PATH := ../src/MeshFix/
 
 DEFINES := -DIS64BITPLATFORM
 INCLUDES := -I../include/Kernel  -I../include/TMesh

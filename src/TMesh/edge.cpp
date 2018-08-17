@@ -108,6 +108,29 @@ bool Edge::swap(const bool fast)
  e1->replaceTriangle(t1, t2);
  e3->replaceTriangle(t2, t1);
 
+#ifdef USE_PER_TRIANGLE_COLORS
+ Triangle *ot1 = t1->nextEdge(this)->oppositeTriangle(t1);
+ Triangle *ot2 = t1->prevEdge(this)->oppositeTriangle(t1);
+ Triangle *ot3 = t2->nextEdge(this)->oppositeTriangle(t2);
+ Triangle *ot4 = t2->prevEdge(this)->oppositeTriangle(t2);
+ uint32_t ct1 = t1->getColor();
+ uint32_t ct2 = t2->getColor();
+ uint32_t c1 = (ot1 != NULL) ? (ot1->getColor()) : (0);
+ uint32_t c2 = (ot2 != NULL) ? (ot2->getColor()) : (0);
+ uint32_t c3 = (ot3 != NULL) ? (ot3->getColor()) : (0);
+ uint32_t c4 = (ot4 != NULL) ? (ot4->getColor()) : (0);
+ UBYTE matches = 0, fmatches = 0;
+ if (ct1 == c1) matches++;
+ if (ct1 == c2) matches++;
+ if (ct2 == c3) matches++;
+ if (ct2 == c4) matches++;
+ if (ct1 == c3) fmatches++;
+ if (ct1 == c4) fmatches++;
+ if (ct2 == c1) fmatches++;
+ if (ct2 == c2) fmatches++;
+ if (fmatches > matches) { t1->setColor(ct2); t2->setColor(ct1); }
+#endif
+
  return 1;
 }
 
@@ -370,6 +393,43 @@ coord Edge::getConvexity() const
 {
 	if (t1 == NULL || t2 == NULL) return DBL_MAX;
 	else return (t1->oppositeVertex(this)->exactOrientation(t2->v3(), t2->v2(), t2->v1()));
+}
+
+//! Returns TRUE if edge has two incident triangles forming a flat and convex quadrilateral.
+bool Edge::isFlatAndConvexQuadrilateral() const
+{
+	if (isOnBoundary()) return false; // Must be not on boundary
+	Vertex *ov1 = t1->oppositeVertex(this);
+	Vertex *ov2 = t2->oppositeVertex(this);
+	if (v1->exactOrientation(v2, ov1, ov2) != 0) return false; // Must be flat
+	if (!(!v1->exactSameSideOnPlane(v2, ov1, ov2) && ov1->exactMisalignment(v1, ov2) && ov1->exactMisalignment(v2, ov2))) return false; // Must be properly convex
+	return true;
+}
+
+coord Edge::delaunayMinAngleSquaredSin() const
+{
+	if (!isFlatAndConvexQuadrilateral()) return DBL_MAX;
+
+	Vertex *ov1 = t1->oppositeVertex(this);
+	Vertex *ov2 = t2->oppositeVertex(this);
+
+	Point l11 = (*ov1 - *v1), l12 = (*ov1 - *v2);
+	coord b11 = l11.squaredLength();
+	coord b12 = l12.squaredLength();
+	coord min_sq_sin1 = ov1->squaredDistanceFromLine(v1,v2) / MAX(b11, b12); // Minimum angle at this edge on t1 (squared sin)
+
+	Point l21 = (*ov2 - *v1), l22 = (*ov2 - *v2);
+	coord b21 = l21.squaredLength();
+	coord b22 = l22.squaredLength();
+	coord min_sq_sin2 = ov2->squaredDistanceFromLine(v1, v2) / MAX(b21, b22); // Minimum angle at this edge on t2 (squared sin)
+
+	coord sq_sin_ov1 = ((l11*l12)>0) ? ((l11&l12).squaredLength() / (b11*b12)) : (DBL_MAX); // Squared sin at ov1 (DBL_MAX if obtuse)
+	coord sq_sin_ov2 = ((l21*l22)>0) ? ((l21&l22).squaredLength() / (b21*b22)) : (DBL_MAX); // Squared sin at ov2 (DBL_MAX if obtuse)
+
+	coord min_sq_ov = MIN(sq_sin_ov1, sq_sin_ov2);
+	coord min_sq_t = MIN(min_sq_sin1, min_sq_sin2);
+
+	return MIN(min_sq_ov, min_sq_t);
 }
 
 

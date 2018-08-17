@@ -34,23 +34,47 @@
 namespace T_MESH
 {
 
-extern "C" double orient2d(double *, double *, double *);
+#ifdef USE_PER_TRIANGLE_COLORS
+uint32_t Triangle::random_color()
+{
+	double r, g, b, l, n;
+	r = ((double)rand()) / RAND_MAX;
+	g = ((double)rand()) / RAND_MAX;
+	b = ((double)rand()) / RAND_MAX;
+	l = sqrt(r*r + g*g + b*b);
+	n = 1.0 / l;
+	r *= n; g *= n; b *= n;
+	uint32_t ir = (unsigned int)(r * 256); if (ir>256) ir = 256;
+	uint32_t ig = (unsigned int)(g * 256); if (ig>256) ig = 256;
+	uint32_t ib = (unsigned int)(b * 256); if (ib>256) ib = 256;
+	return ((ir << 24) + (ig << 16) + (ib << 8) + 0x000000ff);
+}
+#endif
 
 //////////////////// Constructor //////////////////////
 
-//!< AMF_ADD 1.1>
 Triangle::Triangle(){
  mask = 0;
  info = NULL;
+#ifdef USE_PER_TRIANGLE_COLORS
+ packed_color = DEFAULT_TRIANGLE_COLOR;
+#endif
 }
 
-Triangle::Triangle(Edge *a, Edge *b, Edge *c)
+Triangle::Triangle(Edge *a, Edge *b, Edge *c
+#ifdef USE_PER_TRIANGLE_COLORS
+	, uint32_t rgba
+#endif
+	)
 {
  e1 = a;
  e2 = b;
  e3 = c;
  mask = 0;
  info = NULL;
+#ifdef USE_PER_TRIANGLE_COLORS
+ packed_color = rgba;
+#endif
 }
 
 
@@ -184,13 +208,14 @@ double Triangle::distanceFromPoint(const Point *p) const
 
 coord Triangle::squaredDistanceFromPoint(const Point *p) const 
 {
- Point CA = e1->toVector()&e2->toVector();
- coord CA2 = CA*CA;
+ return p->squaredDistanceFromPlane(e1->toVector(), (*e1->v1));
+ //Point CA = e1->toVector()&e2->toVector(); 
+ //coord CA2 = CA*CA;
 
- if (CA2 == 0) return -1.0; 
- coord d = ((CA*(*p))-(CA*(*(e1->v1))));
+ //if (CA2 == 0) return -1.0; 
+ //coord d = ((CA*(*p))-(CA*(*(e1->v1))));
 
- return (d*d)/CA2;
+ //return (d*d)/CA2;
 }
 
 
@@ -257,12 +282,24 @@ bool Triangle::isExactlyDegenerate() const
 
 Edge *Triangle::getLongestEdge() const
 {
- coord l1 = e1->squaredLength();
- coord l2 = e2->squaredLength();
- coord l3 = e3->squaredLength();
- if (l1>=l2 && l1>=l3) return e1;
- if (l2>=l1 && l2>=l3) return e2;
- return e3;
+	coord l1 = e1->squaredLength();
+	coord l2 = e2->squaredLength();
+	coord l3 = e3->squaredLength();
+	if (l1 >= l2 && l1 >= l3) return e1;
+	if (l2 >= l1 && l2 >= l3) return e2;
+	return e3;
+}
+
+//// get shortest edge /////
+
+Edge *Triangle::getShortestEdge() const
+{
+	coord l1 = e1->squaredLength();
+	coord l2 = e2->squaredLength();
+	coord l3 = e3->squaredLength();
+	if (l1 <= l2 && l1 <= l3) return e1;
+	if (l2 <= l1 && l2 <= l3) return e2;
+	return e3;
 }
 
 Edge *Triangle::getCapEdge() const

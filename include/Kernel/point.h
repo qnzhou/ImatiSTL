@@ -35,11 +35,6 @@
 
 namespace T_MESH
 {
-
-//! Orientation predicates using filtering on doubles
-extern "C" double orient2d(double *, double *, double *);
-extern "C" double orient3d(double *, double *, double *, double *);
-
 //! Orientation predicates on PM_Rationals
 
 // orient2D: >0 =0 <0 if (p,q,r) are CCW, aligned, CW respectively
@@ -152,21 +147,17 @@ class Point
  //! TRUE if vector is (0,0,0)
  bool  	isNull() const {return (x==0 && y==0 && z==0);}
 
- //! Squared distance from origin
- coord squaredLength() const {return (x*x + y*y + z*z);}
-
- //! Squared distance from '*b'
- coord squaredDistance(const Point *b) const { return (((*(this)) - (*b)).squaredLength()); }
-
  //! Returns the solution of the linear system Ax = d, where A is a 3x3 matrix whose rows are row1, row2 and row3, d = this
  Point  linearSystem(const Point& row1, const Point& row2, const Point& row3);
-
 
  //! Projects the vector on the plane with normal 'n' passing through the origin.
  void   project(const Point *n);
 
  //! Returns the projection of the point on the straight line though 'a' and 'b'.
  Point  projection(const Point *a, const Point *b) const;
+
+ //! Returns the projection of the point on the plane though 'a', 'b' and 'c'.
+ Point  projection(const Point *a, const Point *b, const Point *c) const;
 
  //! Prints the coordinates of the point to a file handler. stdout is the default.
  void 	printPoint(FILE *fp = stdout) const { fprintf(fp, "%f %f %f,\n", TMESH_TO_FLOAT(x), TMESH_TO_FLOAT(y), TMESH_TO_FLOAT(z)); }		// Debug
@@ -196,6 +187,21 @@ class Point
  //! Itersection point between line p-q and plane r-s-t. Return INFINITE_POINT for parallel/degenerate args.
  static Point linePlaneIntersection(const Point& p, const Point& q, const Point& r, const Point& s, const Point& t);
 
+ //! Itersection point between line p-q and plane for 'v0' with directional vector 'd'. Return INFINITE_POINT for parallel/degenerate args.
+ static Point linePlaneIntersection(const Point& p, const Point& q, const Point& v0, const Point& d);
+
+ //! Squared distance from origin
+ coord squaredLength() const { return (x*x + y*y + z*z); }
+
+ //! Squared distance from '*b'
+ coord squaredDistance(const Point *b) const { return (((*(this)) - (*b)).squaredLength()); }
+
+ //! Squared distance from straight line through 'a' and 'b'
+ coord squaredDistanceFromLine(const Point *a, const Point *b) const;
+
+ //! Squared distance from plane through 'app_point' and 'having directional vector 'dirver'
+ coord squaredDistanceFromPlane(const Point& dirver, const Point& app_point) const;
+
  //! Squared area of the triangle p-q-r.
  static coord squaredTriangleArea3D(const Point& p, const Point& q, const Point& r);
 
@@ -224,10 +230,19 @@ class Point
  //! true if segment (s1-s2) intersects the triangle v1-v2-v3 (border included).
  static bool segmentIntersectsTriangle(const Point *s1, const Point *s2, const Point *v1, const Point *v2, const Point *v3);
 
+ //! true if inner segment (s1-s2) intersects the triangle v1-v2-v3 (border excluded) at a single point
+ static bool segmentProperlyIntersectsTriangle(const Point *s1, const Point *s2, const Point *v1, const Point *v2, const Point *v3);
+
  //! true if segment (s1-s2) intersects the triangle v1-v2-v3 (border included).
  //! Accelerated version - relative orientations are passed as parameters.
  static bool segmentIntersectsTriangle(const Point *s1, const Point *s2, const Point *v1, const Point *v2, const Point *v3, const coord& o1, const coord& o2);
 
+ //! Line-line closest point computation.
+ //! Computes the closest points of the line passing through this and this2,
+ //! and the line passing through p1 and p2. The computed points are used to
+ //! initialize the  coordinates  of  cpOnThis  and  cpOnOther.  The  method
+ //! returns 0 if the lines are parallel, 1 otherwise.
+ int    closestPoints(const Point *this2, const Point *p1, const Point *p2, Point *cpOnThis, Point *cpOnOther) const;
 
 
 
@@ -272,16 +287,6 @@ class Point
 
  //! Angle defined by <*a, *this, *b> in radians.
  double getAngle(const Point *a, const Point *b) const { return ((*a) - (*this)).getAngle((*b) - (*this)); }
-
-
- //! Line-line closest point computation.
- //! I SUSPECT THIS CAN BE MADE EXACT...
-
- //! Computes the closest points of the line passing through this and this2,
- //! and the line passing through p1 and p2. The computed points are used to
- //! initialize the  coordinates  of  cpOnThis  and  cpOnOther.  The  method
- //! returns 0 if the lines are parallel, 1 otherwise.
- int    closestPoints(const Point *this2, const Point *p1, const Point *p2, Point *cpOnThis, Point *cpOnOther) const;
 };
 
 //! Lexycographic comparison to be used with jqsort() or abstractHeap.

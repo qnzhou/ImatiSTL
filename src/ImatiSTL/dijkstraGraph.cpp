@@ -77,8 +77,12 @@ void dijkstraGraph::runDijkstra(dijkstraNode *n0, bool use_distances)
  double d;
  FOREACHNODE(nodes, n) {dn=((dijkstraNode *)n->data); dn->mask=0; if (!use_distances) dn->dist = DBL_MAX;}
 
- n0->dist = 0.0;
- ch->push(n0);
+ if (n0 != NULL)
+ {
+	 n0->dist = 0.0;
+	 ch->push(n0);
+ }
+ else FOREACHNODE(nodes, n) { dn = ((dijkstraNode *)n->data); if (dn->dist == 0.0) ch->push(dn); }
 
  while ((dn=ch->popHead())!=NULL)
  {

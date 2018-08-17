@@ -53,7 +53,7 @@ int Basic_TMesh::StarTriangulateHole(Edge *e)
  Point np;
  Vertex *v, *nv, *v1, *v2;
  int nt=0;
-
+ Triangle *t;
  v = e->v1;
 
  do
@@ -78,7 +78,10 @@ int Basic_TMesh::StarTriangulateHole(Edge *e)
   v2 = ((Vertex *)n->data);
   e2 = CreateEdge(nv, v2);
   e3 = v1->getEdge(v2);
-  CreateTriangle(e1, e2, e3);
+  t=CreateTriangle(e1, e2, e3);
+#ifdef USE_PER_TRIANGLE_COLORS
+  t->setColor(e3->oppositeTriangle(t)->getColor());
+#endif
   nt++;
   v1 = v2;
   e1 = e2;
@@ -86,11 +89,44 @@ int Basic_TMesh::StarTriangulateHole(Edge *e)
  v2 = ((Vertex *)bvs.head()->data);
  e2 = nv->getEdge(v2);
  e3 = v1->getEdge(v2);
- CreateTriangle(e1, e2, e3);
+ t=CreateTriangle(e1, e2, e3);
+#ifdef USE_PER_TRIANGLE_COLORS
+ t->setColor(e3->oppositeTriangle(t)->getColor());
+#endif
  nt++;
 
  return nt;
 }
+
+
+#ifdef USE_PER_TRIANGLE_COLORS
+void repaintNewlyInsertedTriangles(Basic_TMesh& tin, int nt)
+{
+	bool colored;
+	Triangle *t;
+	int i;
+	Node *n;
+	List tris, cols;
+	for (n = tin.T.head(), i = 0; n != NULL && i < nt; n = n->next(), i++) ((Triangle *)n->data)->setColor(0);
+
+	do
+	{
+		colored = false;
+		for (n = tin.T.head(), i = 0; n != NULL && i < nt; n = n->next(), i++)
+		{
+			t = (Triangle *)n->data;
+			if (t->getColor() == 0)
+			{
+				if (t->t1() && t->t1()->getColor() != 0) { tris.appendTail(t); cols.appendTail((void *)t->t1()->getColor()); } 
+				else if (t->t2() && t->t2()->getColor() != 0) { tris.appendTail(t); cols.appendTail((void *)t->t2()->getColor()); } 
+				else if (t->t3() && t->t3()->getColor() != 0) { tris.appendTail(t); cols.appendTail((void *)t->t3()->getColor()); }
+			}
+		}
+		colored = (tris.numels() != 0);
+		while ((t = (Triangle *)tris.popHead()) != NULL) t->setColor((uint32_t)cols.popHead());
+	} while (colored);
+}
+#endif
 
 
 ///// Patch holes using 2D Delaunay triangulation on the plane 'nor' /////
@@ -131,7 +167,10 @@ int Basic_TMesh::TriangulateHole(Edge *e, Point *nor)
   e1 = v->getEdge(v1);
   e2 = v->getEdge(v2);
   if (!EulerEdgeTriangle(e1, e2)) MARK_BIT(v, 5);
-  else { bvs.removeCell(gn); UNMARK_BIT(v1, 5); UNMARK_BIT(v2, 5); nt++; }
+  else
+  {
+	  bvs.removeCell(gn); UNMARK_BIT(v1, 5); UNMARK_BIT(v2, 5); nt++; 
+  }
  }
 
  int i, skips;
@@ -147,6 +186,10 @@ int Basic_TMesh::TriangulateHole(Edge *e, Point *nor)
   }
   if (i < 0) {TMesh::warning("Optimization is taking too long. I give up.\n"); break;}
  } while (skips);
+
+#ifdef USE_PER_TRIANGLE_COLORS
+ repaintNewlyInsertedTriangles(*this, nt);
+#endif
 
  return nt;
 }
@@ -287,6 +330,10 @@ int Basic_TMesh::TriangulateHole(Edge *e, List *vl)
   v->x = ovps[j++]; v->y = ovps[j++]; v->z = ovps[j++];
  }
  delete [] ovps; //free(ovps);						// AMF_CHANGE - since IMAT-STL 2.4-2
+
+#ifdef USE_PER_TRIANGLE_COLORS
+ repaintNewlyInsertedTriangles(*this, nt);
+#endif
 
  return nt;
 }
@@ -481,6 +528,10 @@ int Basic_TMesh::TriangulateHole(Edge *e)
   else { bvs.removeCell(gn); UNMARK_BIT(v1, 5); UNMARK_BIT(v2, 5); MARK_VISIT(t); nt++; }
  }
 
+#ifdef USE_PER_TRIANGLE_COLORS
+ repaintNewlyInsertedTriangles(*this, nt);
+#endif
+
  return nt;
 }
 
@@ -490,7 +541,7 @@ int Basic_TMesh::TriangulateHole(Edge *e)
 
 void Basic_TMesh::FillHole(Edge *e, bool refine)
 {
- int i, nt;
+ int i, nt, tnels = T.numels();
  Node *n;
  Triangle *t;
  Vertex *v;
@@ -503,7 +554,12 @@ void Basic_TMesh::FillHole(Edge *e, bool refine)
  i=0; FOREACHTRIANGLE(t, n) if (i++==nt) break; else MARK_VISIT(t);
 
  if (refine)
-  refineSelectedHolePatches((Triangle *)T.head()->data);
+ {
+	 refineSelectedHolePatches((Triangle *)T.head()->data);
+#ifdef USE_PER_TRIANGLE_COLORS
+	 repaintNewlyInsertedTriangles(*this, T.numels() - tnels);
+#endif
+ }
 }
 
 //// Triangulate Small Boundaries (with less than 'nbe' edges) /////
@@ -553,10 +609,14 @@ int Basic_TMesh::fillSmallBoundaries(int nbe, bool refine_patches)
 
  pct=0; FOREACHNODE(bdrs, n)
  {
+  int tnels = T.numels();
   if (TriangulateHole((Edge *)n->data) && refine_patches)
   {
    t = (Triangle *)T.head()->data;
    refineSelectedHolePatches(t);
+#ifdef USE_PER_TRIANGLE_COLORS
+   repaintNewlyInsertedTriangles(*this, T.numels() - tnels);
+#endif
   }
   TMesh::report_progress("%d%% done ",((++pct)*100)/bdrs.numels());
  }
@@ -725,6 +785,7 @@ Edge *Basic_TMesh::joinBoundaryLoops(Vertex *gv, Vertex *gw, bool justconnect, b
 	Triangle *t;
 	Node *n;
 	double tl1 = 0.0, tl2 = 0.0, pl1, pl2;
+	int tnels = T.numels();
 
 	if (gv == NULL || gw == NULL || !gv->isOnBoundary() || !gw->isOnBoundary()) return NULL;
 
@@ -790,6 +851,10 @@ Edge *Basic_TMesh::joinBoundaryLoops(Vertex *gv, Vertex *gw, bool justconnect, b
 	}
 
 	if (refine) refineSelectedHolePatches();
+
+#ifdef USE_PER_TRIANGLE_COLORS
+	repaintNewlyInsertedTriangles(*this, T.numels() - tnels);
+#endif
 
 	return je;
 }

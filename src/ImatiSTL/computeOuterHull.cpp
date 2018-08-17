@@ -624,7 +624,7 @@ public:
 		Triangle *t;
 		Node *n;
 		FOREACHVTTRIANGLE((&(triangles)), t, n)
-			fprintf(fp, "%d, %d, %d, -1,\n", (j_voidint)t->v1()->info, (j_voidint)t->v2()->info, (j_voidint)t->v3()->info);
+			fprintf(fp, "%d, %d, %d, -1,\n", (int)t->v1()->info, (int)t->v2()->info, (int)t->v3()->info);
 
 		fprintf(fp, "]\n}\n");
 	}
@@ -1660,6 +1660,7 @@ TriMesh *ric_computeOuterHull(TriMesh& tin, bool waf = false, int timeout_secs =
  {
   m_solid_comp = coh_extractComponent3(tin, comp);
   if (m_solid_comp != NULL) { printf("%d tris.\n", m_solid_comp->T.numels()); ttin->moveMeshElements(m_solid_comp); }
+  else printf("0 tris.\n");
  }
  if (comp != NULL) comp->rebuildConnectivity();
 #endif
@@ -1671,18 +1672,19 @@ TriMesh *ric_computeOuterHull(TriMesh& tin, bool waf = false, int timeout_secs =
 
  ImatiSTL::printElapsedTime();
  int r = ric_removeInnerShells(&tin, comp);
+
  if (r) ImatiSTL::info("%d inner shells have been removed.\n", r);
  ImatiSTL::printElapsedTime();
 
  ImatiSTL::useRationals(old_status);
 
-// r = tin.removeRedundantVertices();
+ r = tin.removeRedundantVertices(true);
  if (r) ImatiSTL::info("%d flat vertices removed from solid.\n", r);
 
  if (comp != NULL)
  {
 	 comp->rebuildConnectivity();
-//	 r = comp->removeRedundantVertices();
+	 r = comp->removeRedundantVertices(true);
 	 if (r) ImatiSTL::info("%d flat vertices removed from sheets.\n", r);
  }
 

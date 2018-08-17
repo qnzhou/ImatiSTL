@@ -254,48 +254,66 @@ void jitterCoordinate(coord& c, int j)
  sscanf(floatver, "%f", &x); c = x;
 }
 
+//bool isRepresentable(coord& c)
+//{
+//	char floatver[32];
+//	float x;
+//	sprintf(floatver, "%f", TMESH_TO_FLOAT(c));
+//	return (c == x);
+//}
+//
+//bool isRepresentable(Point *c)
+//{
+//	return (isRepresentable(c->x) && isRepresentable(c->y) && isRepresentable(c->z));
+//}
+
+// Look for a representable position that does not flip any of the incident triangles
+bool findRepresentableVertexPosition(Vertex *v)
+{
+	List *vt = v->VT();
+	List nbj;
+	Node *n;
+	Triangle *t;
+	FOREACHVTTRIANGLE(vt, t, n) nbj.appendTail(new Point(t->getVector()));
+
+	Point orig(v);
+
+	for (int a = 0; a <= 2; a++) for (int b = 0; b <= 2; b++) for (int c = 0; c <= 2; c++)
+	{
+		v->setValue(orig);
+		jitterCoordinate(v->x, (a == 2) ? (-1) : (a)); jitterCoordinate(v->y, (b == 2) ? (-1) : (b)); jitterCoordinate(v->z, (c == 2) ? (-1) : (c));
+
+		Node *m = nbj.head();
+		FOREACHVTTRIANGLE(vt, t, n)
+		{
+			Point *orn = (Point *)m->data;
+			if ((!orn->isNull()) && ((*orn)*(t->getVector()) <= 0)) break; // This movement would flip a triangle
+			m = m->next();
+		}
+		if (n == NULL) {
+			for (n = nbj.head(); n != NULL; n = n->next()) delete ((Point *)n->data);
+			delete vt;
+			return true;
+		}
+	}
+	v->setValue(orig);
+	jitterCoordinate(v->x, 0); jitterCoordinate(v->y, 0); jitterCoordinate(v->z, 0);
+	for (n = nbj.head(); n != NULL; n = n->next()) delete ((Point *)n->data);
+	delete vt;
+	return false;
+}
+
+
 bool Basic_TMesh::safeCoordBackApproximation()
 {
 	Node *n;
 	Vertex *v;
 
-	deselectTriangles();
+	int nbv = 0;
+	FOREACHVERTEX(v, n) if (!findRepresentableVertexPosition(v)) nbv++;
 
-	FOREACHVERTEX(v, n)
-	{
-		jitterCoordinate(v->x, 0);
-		jitterCoordinate(v->y, 0);
-		jitterCoordinate(v->z, 0);
-	}
-	
-	Edge *e;
-	Vertex *ov1, *ov2;
-
-	int pnos = 0, nos;
-	nos = 0; FOREACHEDGE(e, n) if (e->overlaps()) nos++;
-
-	do
-	{
-		pnos = nos;
-		FOREACHEDGE(e, n) if (e->overlaps())
-		{
-			ov1 = e->t1->oppositeVertex(e);
-			ov2 = e->t2->oppositeVertex(e);
-			v = (Point::squaredTriangleArea3D(e->v1, e->v2, ov1) < Point::squaredTriangleArea3D(e->v1, e->v2, ov2)) ? (ov1) : (ov2);
-			for (int a = -1; a <= 1; a++) for (int b = -1; b <= 1; b++) for (int c = -1; c <= 1; c++)
-			{
-				jitterCoordinate(v->x, a); jitterCoordinate(v->y, b); jitterCoordinate(v->z, c);
-				if (e->overlaps())
-				{
-					jitterCoordinate(v->x, -a); jitterCoordinate(v->y, -b); jitterCoordinate(v->z, -c);
-				} else a = b = c = 2;
-			}
-		}
-		nos = 0; FOREACHEDGE(e, n) if (e->overlaps()) nos++;
-	} while (nos < pnos);
-
-//	if (nos) TMesh::warning("%d overlaps could not be removed.\n", nos);
-	return (nos == 0);
+	if (nbv) TMesh::warning("%d vertices cannot be represented.\n", nbv);
+	return (nbv == 0);
 }
 
 

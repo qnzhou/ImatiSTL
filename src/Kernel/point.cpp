@@ -52,7 +52,7 @@ PM_Rational orient2D(const PM_Rational& px, const PM_Rational& py, const PM_Rati
 		pqr[0] = px.getDVal();  pqr[1] = py.getDVal();
 		pqr[2] = qx.getDVal();  pqr[3] = qy.getDVal();
 		pqr[4] = rx.getDVal();  pqr[5] = ry.getDVal();
-		return orient2d(pqr, pqr + 2, pqr + 4);
+		return TMesh::tri_orientation(pqr, pqr + 2, pqr + 4);
 	}
 	else if (PM_Rational::isUsingRationals())
 	{
@@ -82,7 +82,7 @@ PM_Rational orient3D(const Point *t, const Point *a, const Point *b, const Point
 		p2[0] = (a->x).getDVal(); p2[1] = (a->y).getDVal(); p2[2] = (a->z).getDVal();
 		p3[0] = (b->x).getDVal(); p3[1] = (b->y).getDVal(); p3[2] = (b->z).getDVal();
 		p4[0] = (c->x).getDVal(); p4[1] = (c->y).getDVal(); p4[2] = (c->z).getDVal();
-		return orient3d(p1, p2, p3, p4);
+		return TMesh::tet_orientation(p1, p2, p3, p4);
 	} else if (PM_Rational::isUsingRationals())
 	{
 		return TMESH_DETERMINANT3X3(t->x - c->x, t->y - c->y, t->z - c->z, a->x - c->x, a->y - c->y, a->z - c->z, b->x - c->x, b->y - c->y, b->z - c->z);
@@ -105,7 +105,7 @@ PM_Rational orient2D(const PM_Rational& px, const PM_Rational& py, const PM_Rati
 	pqr[0] = TMESH_TO_DOUBLE(px);  pqr[1] = TMESH_TO_DOUBLE(py);
 	pqr[2] = TMESH_TO_DOUBLE(qx);  pqr[3] = TMESH_TO_DOUBLE(qy);
 	pqr[4] = TMESH_TO_DOUBLE(rx);  pqr[5] = TMESH_TO_DOUBLE(ry);
-	return orient2d(pqr, pqr + 2, pqr + 4);
+	return TMesh::tri_orientation(pqr, pqr + 2, pqr + 4);
 }
 
 PM_Rational orient3D(const Point *t, const Point *a, const Point *b, const Point *c)
@@ -117,7 +117,7 @@ PM_Rational orient3D(const Point *t, const Point *a, const Point *b, const Point
 	p2[0] = TMESH_TO_DOUBLE(a->x); p2[1] = TMESH_TO_DOUBLE(a->y); p2[2] = TMESH_TO_DOUBLE(a->z);
 	p3[0] = TMESH_TO_DOUBLE(b->x); p3[1] = TMESH_TO_DOUBLE(b->y); p3[2] = TMESH_TO_DOUBLE(b->z);
 	p4[0] = TMESH_TO_DOUBLE(c->x); p4[1] = TMESH_TO_DOUBLE(c->y); p4[2] = TMESH_TO_DOUBLE(c->z);
-	return orient3d(p1, p2, p3, p4);
+	return TMesh::tet_orientation(p1, p2, p3, p4);
 }
 
 #endif
@@ -237,14 +237,12 @@ bool Point::operator<(const Point& s) const
 // This can be used with jqsort
 int xyzCompare(const void *a, const void *b)
 {
- coord c;
-
- if ((c=(((Point *)a)->x - ((Point *)b)->x)) < 0) return -1;
- if (c > 0) return 1;
- if ((c=(((Point *)a)->y - ((Point *)b)->y)) < 0) return -1;
- if (c > 0) return 1;
- if ((c=(((Point *)a)->z - ((Point *)b)->z)) < 0) return -1;
- if (c > 0) return 1;
+ if (((((Point *)a)->x < ((Point *)b)->x))) return -1;
+ if (((((Point *)a)->x > ((Point *)b)->x))) return 1;
+ if (((((Point *)a)->y < ((Point *)b)->y))) return -1;
+ if (((((Point *)a)->y > ((Point *)b)->y))) return 1;
+ if (((((Point *)a)->z < ((Point *)b)->z))) return -1;
+ if (((((Point *)a)->z > ((Point *)b)->z))) return 1;
 
  return 0;
 }
@@ -353,11 +351,22 @@ double Point::distanceFromLine(const Point *A, const Point *B, Point *cc) const
 
 Point Point::projection(const Point *A, const Point *B) const
 {
- Point BA = (*B)-(*A);
- coord l = BA*BA;
- if (l == 0.0) TMesh::error("projection : Degenerate line passed !\n");
+	Point BA = (*B) - (*A);
+	coord l = BA*BA;
+	if (l == 0.0) TMesh::error("projection : Degenerate line passed !\n");
 
- return ((*A)+(BA*((BA*((*this)-(*A)))/(l))));
+	return ((*A) + (BA*((BA*((*this) - (*A))) / (l))));
+}
+
+
+////////////// Projection on the plane passing through A, B and C ///////////
+
+Point Point::projection(const Point *A, const Point *B, const Point *C) const
+{
+	Point BA = (*B) - (*A), CA = (*C)-(*A);
+	Point plane_vec = BA&CA;
+	Point p2 = (*this) + (plane_vec);
+	return Point::linePlaneIntersection(*this, p2, *A, *B, *C);
 }
 
 
@@ -450,13 +459,13 @@ Point Point::linearSystem(const Point& a, const Point& b, const Point& c)
 
 int Point::closestPoints(const Point *v1, const Point *p1, const Point *p2, Point *ptOnThis, Point *ptOnLine2) const
 {
- Point pos1 = *this; Point dir1 = (*v1)-pos1;
- Point pos2 = *p1;   Point dir2 = (*p2)-pos2;
- coord d1l = dir1.length(), d2l = dir2.length();
+ Point pos1 = *this; Point u = (*v1)-pos1;
+ Point pos2 = *p1;   Point v = (*p2)-pos2;
+ coord d1l = u.squaredLength(), d2l = v.squaredLength();
 
- if (d1l == 0.0 && d2l == 0.0)
+ if (d1l == 0.0 && d2l == 0.0) // Both lines are degenerate. Consider them as points.
   {ptOnThis->setValue(this); ptOnLine2->setValue(p1); return 1;}
- if (d1l*d2l == 0.0)
+ if (d1l*d2l == 0.0) // One of the two lines is degenerate. Consider is as a point and compute its projection on other line.
  {
   if (d1l <= d2l)
    {ptOnThis->setValue(this); distanceFromLine(p1, p2, ptOnLine2); return 1;}
@@ -464,27 +473,22 @@ int Point::closestPoints(const Point *v1, const Point *p1, const Point *p2, Poin
    {ptOnLine2->setValue(p1); p1->distanceFromLine(this, v1, ptOnThis); return 1;}
  }
 
- coord ang = dir1.getAngle(dir2);
- if (ang == 0.0 || ang == M_PI) return 0;
+ coord s, t, A, B, C, D, E, denom;
 
- coord s, t, A, B, C, D, E, F, denom;
+ A = u*u;
+ B = u*v;
+ C = v*v;
+ denom = (A*C) - (B*B);
+ if (denom == 0.0) return 0; // Lines are parallel
 
- denom = ((dir1*dir2)/(d1l*d2l));
- denom = denom*denom - 1;
+ Point w0 = pos1 - pos2;
+ D = u*w0;
+ E = v*w0;
+ s = (B*E - C*D) / denom;
+ t = (A*E - B*D) / denom;
 
- dir1.normalize();
- dir2.normalize();
-
- A = E = dir1*dir2;
- B = dir1*dir1;
- C = (dir1*pos1) - (dir1*pos2);
- D = dir2*dir2;
- F = (dir2*pos1) - (dir2*pos2);
-
- s = ( C * D - A * F ) / denom;
- t = ( C * E - B * F ) / denom;
- *ptOnThis  = pos1 + (dir1*s);
- *ptOnLine2 = pos2 + (dir2*t);
+ *ptOnThis  = pos1 + (u*s);
+ *ptOnLine2 = pos2 + (v*t);
 
 // Uncomment the following to compute the distance between segments
 // if (s < 0 || s > ((*v1)-(*this)).length() || t < 0 || t > ((*p2)-(*p1)).length())
@@ -521,6 +525,16 @@ Point Point::linePlaneIntersection(const Point& p, const Point& q, const Point& 
 	return p + ((q - p)*gamma);
 }
 
+// Returns the point of intersection between the line for (v1,v2) and the plane for 'v0' with directional vector 'd'
+// Returns INFINITE_POINT in case of parallelism
+Point Point::linePlaneIntersection(const Point& v1, const Point& v2, const Point& v0, const Point& d)
+{
+	Point v21 = (v2 - v1);
+	coord den = d*v21;
+	if (den == 0) return INFINITE_POINT;
+	else return v1 + (v21*((d*(v0 - v1)) / den));
+}
+
 coord Point::squaredTriangleArea3D(const Point& p, const Point& q, const Point& r)
 {
 	Point pr = (p - r), qr = (q - r);
@@ -528,6 +542,24 @@ coord Point::squaredTriangleArea3D(const Point& p, const Point& q, const Point& 
 	return (n*n) / 4;
 }
 
+coord Point::squaredDistanceFromLine(const Point *x1, const Point *x2) const
+{
+	Point x10 = (*x1) - (*this);
+	Point x21 = (*x2) - (*x1);
+	if (x21.isNull()) return DBL_MAX;
+	x10 = x21&x10;
+	return (x10*x10) / (x21*x21);
+}
+
+coord Point::squaredDistanceFromPlane(const Point& dirver, const Point& app_point) const
+{
+	coord CA2 = dirver*dirver;
+
+	if (CA2 == 0) return -1.0;
+	coord d = (dirver*(*this)) - (dirver*(app_point));
+
+	return (d*d) / CA2;
+}
 
 //////////////////////////////////////////////////////////////////
 //
@@ -618,6 +650,37 @@ bool Point::segmentIntersectsTriangle(const Point *s1, const Point *s2, const Po
 	}
 
 	if ((o1>0 && o2>0) || (o1<0 && o2<0)) return false; // s1 and s2 are both above/below v1,v2,v3
+	o1 = s1->exactOrientation(s2, v1, v2);
+	o2 = s1->exactOrientation(s2, v2, v3);
+	if ((o1>0 && o2<0) || (o1<0 && o2>0)) return false;
+	o3 = s1->exactOrientation(s2, v3, v1);
+	if ((o1>0 && o3<0) || (o1<0 && o3>0)) return false;
+	if ((o2>0 && o3<0) || (o2<0 && o3>0)) return false;
+	return true;
+}
+
+bool Point::segmentProperlyIntersectsTriangle(const Point *s1, const Point *s2, const Point *v1, const Point *v2, const Point *v3)
+{
+	coord o1, o2, o3;
+
+	coord mx = MIN(s1->x, s2->x);
+	if (v1->x < mx && v2->x < mx && v3->x < mx) return false;
+	mx = MAX(s1->x, s2->x);
+	if (v1->x > mx && v2->x > mx && v3->x > mx) return false;
+	mx = MIN(s1->y, s2->y);
+	if (v1->y < mx && v2->y < mx && v3->y < mx) return false;
+	mx = MAX(s1->y, s2->y);
+	if (v1->y > mx && v2->y > mx && v3->y > mx) return false;
+	mx = MIN(s1->z, s2->z);
+	if (v1->z < mx && v2->z < mx && v3->z < mx) return false;
+	mx = MAX(s1->z, s2->z);
+	if (v1->z > mx && v2->z > mx && v3->z > mx) return false;
+
+	o1 = s1->exactOrientation(v1, v2, v3);
+	o2 = s2->exactOrientation(v1, v2, v3);
+	if ((o1>=0 && o2>=0) || (o1<=0 && o2<=0)) return false;
+
+	// Only one above and one below here...
 	o1 = s1->exactOrientation(s2, v1, v2);
 	o2 = s1->exactOrientation(s2, v2, v3);
 	if ((o1>0 && o2<0) || (o1<0 && o2>0)) return false;

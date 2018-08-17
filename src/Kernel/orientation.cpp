@@ -34,11 +34,7 @@
 // 18(3):305–363, October 1997.
 //
 
-#include <math.h>
-
-#ifdef SPECIFY_FP_PRECISION
-#include <float.h>
-#endif
+#include "basics.h"
 
 /*****************************************************************************/
 /*                                                                           */
@@ -47,7 +43,6 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#define FABS(a) (((a)>=0.0)?(a):(-(a)))
 #define FTST(a,b,x,y) _bvr=x-a; y=b-_bvr
 #define FTS(a,b,x,y) x=(double)(a+b); FTST(a,b,x,y)
 #define TST(a,b,x,y) _bvr=(double)(x-a); _avr=x-_bvr; _brn=b-_bvr; _arn=a-_avr; y=_arn+_brn
@@ -62,10 +57,12 @@
 #define TTD(a1,a0,b1,b0,x3,x2,x1,x0) TOD(a1,a0,b0,_j,_0,x0); TOD(_j,_0,b1,x3,x2,x1)
 #define TOP(a1,a0,b,x3,x2,x1,x0) SPLT(b,bhi,blo); TPP(a0,b,bhi,blo,_i,x0); TPP(a1,b,bhi,blo,_j,_0); TWS(_i,_0,_k,x1); FTS(_j,_k,x3,x2)
 
-double _spl, _eps, _reb, _ccwebA, _ccwebB, _ccwebC, _o3ebA, _o3ebB, _o3ebC;
-double _iccebA, _iccebB, _iccebC, _ispebA, _ispebB, _ispebC;
+namespace T_MESH
+{
 
-int _fesze(int elen, double *e, int flen, double *f, double *h)
+#pragma optimize("", off)
+
+int TMesh::_fesze(int elen, double *e, int flen, double *f, double *h)
 {
   double Q, Qnew, hh, _bvr, _avr, _brn, _arn, enow, fnow;
   int eindex, findex, hindex;
@@ -129,7 +126,7 @@ int _fesze(int elen, double *e, int flen, double *f, double *h)
   return hindex;
 }
 
-int _seze(int elen, double *e, double b, double *h)
+int TMesh::_seze(int elen, double *e, double b, double *h)
 {
  double Q, sum, hh, product1, product0, enow, _bvr, _avr, _brn, _arn, c;
  double abig, ahi, alo, bhi, blo, err1, err2, err3;
@@ -159,7 +156,7 @@ int _seze(int elen, double *e, double b, double *h)
   return hindex;
 }
 
-double _estm(int elen, double *e)
+double TMesh::_estm(int elen, double *e)
 {
  int eindex;
  double Q = e[0];
@@ -167,8 +164,7 @@ double _estm(int elen, double *e)
  return Q;
 }
 
-
-double _adaptive2dorientation(double *pa, double *pb, double *pc, double detsum)
+double TMesh::_adaptive2dorientation(double *pa, double *pb, double *pc, double detsum)
 {
  double acx, acy, bcx, bcy,acxtail, acytail, bcxtail, bcytail, detleft, detright;
  double detlefttail, detrighttail, det, errbound, B[4], C1[8], C2[12], D[16];
@@ -232,7 +228,7 @@ double _adaptive2dorientation(double *pa, double *pb, double *pc, double detsum)
   return(D[Dlength - 1]);
 }
 
-double _adaptive3dorientation(double *pa, double *pb, double *pc, double *pd, double permanent)
+double TMesh::_adaptive3dorientation(double *pa, double *pb, double *pc, double *pd, double permanent)
 {
  double adx, bdx, cdx, ady, bdy, cdy, adz, bdz, cdz, det, errbound;
  double bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
@@ -608,60 +604,12 @@ double _adaptive3dorientation(double *pa, double *pb, double *pc, double *pd, do
 /*****************************************************************************/
 /*                                                                           */
 /*  PUBLIC FUNCTIONS                                                         */
-/*  initPredicates()   Sets  the variables used for exact arithmetic. This   */
-/*                must be called once before using the other two functions.  */
-/*  orient2d()    Computes the orientation of three 2D points.               */
-/*  orient3d()    Computes the orientation of four 3D points.                */
+/*  tri_orientation()    Computes the orientation of three 2D points.        */
+/*  tet_orientation()    Computes the orientation of four 3D points.         */
 /*                                                                           */
 /*****************************************************************************/
 
-void initPredicates()
-{
- static char a_c=0;
- double hf, ck, lc;
- int e_o;
-
- if (a_c) return; else a_c = 1;
-
-#ifdef SPECIFY_FP_PRECISION
- unsigned int old_cfp;
- _controlfp_s(&old_cfp, _PC_53, MCW_PC);
-#endif
- 
- e_o = 1;
- _eps = _spl = ck = 1.0;
- hf = 0.5;
-
- do
- {
-  lc=ck;
-  _eps *= hf;
-  if (e_o) _spl *= 2.0;
-  e_o = !e_o;
-  ck = 1.0 + _eps;
- } while ((ck != 1.0) && (ck != lc));
- _spl += 1.0;
-
-  _reb = (3.0 + 8.0 * _eps) * _eps;
-  _ccwebA = (3.0 + 16.0 * _eps) * _eps;
-  _ccwebB = (2.0 + 12.0 * _eps) * _eps;
-  _ccwebC = (9.0 + 64.0 * _eps) * _eps * _eps;
-  _o3ebA = (7.0 + 56.0 * _eps) * _eps;
-  _o3ebB = (3.0 + 28.0 * _eps) * _eps;
-  _o3ebC = (26.0 + 288.0 * _eps) * _eps * _eps;
-  _iccebA = (10.0 + 96.0 * _eps) * _eps;
-  _iccebB = (4.0 + 48.0 * _eps) * _eps;
-  _iccebC = (44.0 + 576.0 * _eps) * _eps * _eps;
-  _ispebA = (16.0 + 224.0 * _eps) * _eps;
-  _ispebB = (5.0 + 72.0 * _eps) * _eps;
-  _ispebC = (71.0 + 1408.0 * _eps) * _eps * _eps;
-
-#ifdef SPECIFY_FP_PRECISION
-  _controlfp_s(&old_cfp, _CW_DEFAULT, MCW_PC);
-#endif
-}
-
-double orient2d(double *pa, double *pb, double *pc)
+double TMesh::tri_orientation(double *pa, double *pb, double *pc)
 {
  double dlf, drg, det, dsm, eb;
 
@@ -679,7 +627,7 @@ double orient2d(double *pa, double *pb, double *pc)
  return _adaptive2dorientation(pa, pb, pc, dsm);
 }
 
-double orient3d(double *pa, double *pb, double *pc, double *pd)
+double TMesh::tet_orientation(double *pa, double *pb, double *pc, double *pd)
 {
  double adx, bdx, cdx, ady, bdy, cdy, adz, bdz, cdz, pm, eb;
  double bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady, det;
@@ -698,3 +646,5 @@ double orient3d(double *pa, double *pb, double *pc, double *pd)
  if ((det>eb) || (-det>eb)) return det;
  return _adaptive3dorientation(pa, pb, pc, pd, pm);
 }
+
+} //namespace T_MESH

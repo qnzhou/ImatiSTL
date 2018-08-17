@@ -118,13 +118,13 @@ void PM_Rational::switchToRational()
 
  bool PM_Rational::operator==(const PM_Rational& a) const
 {
-	 if (_whv || a._whv /*use_rationals*/) return (toRational() == a.toRational());
+	 if (_whv || a._whv) return (toRational() == a.toRational());
 	 else return (toDouble() == a.toDouble());
  }
 
  bool PM_Rational::operator!=(const PM_Rational& a) const
 {
-	 if (_whv || a._whv /*use_rationals*/) return (toRational() != a.toRational());
+	 if (_whv || a._whv) return (toRational() != a.toRational());
 	 else return (toDouble() != a.toDouble());
 }
 
@@ -141,6 +141,12 @@ void PM_Rational::switchToRational()
 	 _whv = 1; _val = (int64_t)new EXACT_NT(a);
  }
 
+ void PM_Rational::setFromDouble(double a)
+ {
+	 if (_whv) delete ((EXACT_NT *)_val);
+	 _whv = 0; _val = d2int64t(a);
+ }
+
  bool PM_Rational::operator<(const PM_Rational& a) const
  {
 	 if (_whv || a._whv) return (toRational() < a.toRational());
@@ -155,13 +161,15 @@ bool PM_Rational::operator>(const PM_Rational& a) const
 
 PM_Rational operator-(const PM_Rational& a) // This might be probably changed... do not understand why to switch..
 {
-	if (PM_Rational::isUsingRationals()) return PM_Rational(-(a.toRational()));
+	if (a.isOfRationalType()) return PM_Rational(-(a.toRational()));
+//	if (PM_Rational::isUsingRationals()) return PM_Rational(-(a.toRational()));
 	else return PM_Rational(-(a.toDouble()));
 }
 
 PM_Rational ceil(const PM_Rational& a)
 {
-	if (PM_Rational::isUsingRationals())
+	if (a.isOfRationalType())
+//	if (PM_Rational::isUsingRationals())
 	{
 		mpz_t n, d, f;
 		mpz_init(n); mpz_init(d); mpz_init(f);
@@ -185,7 +193,8 @@ PM_Rational ceil(const PM_Rational& a)
 
 PM_Rational floor(const PM_Rational& a)
 {
-	if (PM_Rational::isUsingRationals())
+	if (a.isOfRationalType())
+		//	if (PM_Rational::isUsingRationals())
 	{
 		mpz_t n, d, f;
 		mpz_init(n); mpz_init(d); mpz_init(f);
@@ -208,7 +217,8 @@ PM_Rational floor(const PM_Rational& a)
 
 PM_Rational round(const PM_Rational& a)
 {
-	if (PM_Rational::isUsingRationals())
+	if (a.isOfRationalType())
+		//	if (PM_Rational::isUsingRationals())
 	{
 		mpz_t n, d, f, c;
 		mpz_init(n); mpz_init(d); mpz_init(f); mpz_init(c);

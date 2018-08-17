@@ -36,8 +36,6 @@
 namespace T_MESH
 {
 
-extern "C" void initPredicates();
-
 void (* TMesh::display_message)(const char*, int) = NULL;
 
 char *TMesh::app_name = NULL;
@@ -48,21 +46,10 @@ char *TMesh::app_url = NULL;
 char *TMesh::app_maillist = NULL;
 const char *TMesh::filename = NULL;
 bool TMesh::quiet = false;
+coord TMesh::maximum_coord_value = TMESH_MAX_COORDINATE;
 
-void TMesh::init(void (*dm)(const char *, int))
-{
- display_message = dm;
- app_name = NULL;
- app_version = NULL;
- app_year = NULL;
- app_authors = NULL;
- app_url = NULL;
- app_maillist = NULL;
- filename = NULL;
- quiet = false;
- initPredicates();
-}
-
+double TMesh::_spl, TMesh::_eps, TMesh::_reb, TMesh::_ccwebA, TMesh::_ccwebB, TMesh::_ccwebC, TMesh::_o3ebA, TMesh::_o3ebB, TMesh::_o3ebC;
+double TMesh::_iccebA, TMesh::_iccebB, TMesh::_iccebC, TMesh::_ispebA, TMesh::_ispebB, TMesh::_ispebC;
 
 ///////////// Prints a fatal error message and exits /////////////
 
@@ -254,6 +241,55 @@ void TMesh::printElapsedTime(bool reset)
 	static clock_t beginning_time;
 	if (reset) beginning_time = clock();
 	else printf("\n\n********** PARTIAL ELAPSED: %d msecs\n\n", (clock() - beginning_time));
+}
+
+#pragma optimize("", off)
+
+void TMesh::init(void(*dm)(const char *, int))
+{
+	display_message = dm;
+	app_name = NULL;
+	app_version = NULL;
+	app_year = NULL;
+	app_authors = NULL;
+	app_url = NULL;
+	app_maillist = NULL;
+	filename = NULL;
+	quiet = false;
+
+	static char a_c = 0;
+	double hf, ck, lc;
+	int e_o;
+
+	if (a_c) return; else a_c = 1;
+
+	e_o = 1;
+	_eps = _spl = ck = 1.0;
+	hf = 0.5;
+
+	do
+	{
+		lc = ck;
+		_eps *= hf;
+		if (e_o) _spl *= 2.0;
+		e_o = !e_o;
+		ck = 1.0 + _eps;
+	} while ((ck != 1.0) && (ck != lc));
+	_spl += 1.0;
+
+	_reb = (3.0 + 8.0 * _eps) * _eps;
+	_ccwebA = (3.0 + 16.0 * _eps) * _eps;
+	_ccwebB = (2.0 + 12.0 * _eps) * _eps;
+	_ccwebC = (9.0 + 64.0 * _eps) * _eps * _eps;
+	_o3ebA = (7.0 + 56.0 * _eps) * _eps;
+	_o3ebB = (3.0 + 28.0 * _eps) * _eps;
+	_o3ebC = (26.0 + 288.0 * _eps) * _eps * _eps;
+	_iccebA = (10.0 + 96.0 * _eps) * _eps;
+	_iccebB = (4.0 + 48.0 * _eps) * _eps;
+	_iccebC = (44.0 + 576.0 * _eps) * _eps * _eps;
+	_ispebA = (16.0 + 224.0 * _eps) * _eps;
+	_ispebB = (5.0 + 72.0 * _eps) * _eps;
+	_ispebC = (71.0 + 1408.0 * _eps) * _eps * _eps;
 }
 
 } //namespace T_MESH

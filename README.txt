@@ -24,8 +24,8 @@ IV 2.1, VRML 1.0, VRML 2.0, OBJ.
 ImatiSTL is a sort of evolution of an older library called JMeshLib, but it is not backward-compatible.
 In ImatiSTL V4.0, most of the old JMeshLib functionalities are part of a module called TMesh.
 
-This package provides pre-compiled static libraries for Windows only (in lib/).
-For Linux you must compile the source tree yourself.
+This package provides pre-compiled static libraries for Windows32 only (in lib/).
+For Linux or Windows64 you must compile the source tree yourself.
 
 See the comments within the source files for details or use doxygen to
 produce documentation in a more readable format.
@@ -49,18 +49,21 @@ ImatiSTL 4.2 has been tested on 32 and 64 bit PCs running:
 
 Older versions were successfully compiled on Ubuntu Linux with standard development tools (gcc/g++).
 
-ImatiSTL can exploit both MPIR and CGAL.
+ImatiSTL can optionally exploit both MPIR and CGAL.
+
 MPIR is used to deal with multiprecision and rational coordinates.
 Precompiled .lib and .dll files are provided for Windows systems
 in 'mpir32' and 'mpir64'. If you are using another system you need
 to download MPIR at http://www.mpir.org/ and compile the library yourself.
-
-Use of MPIR is required from version 2.0 to 3.1-1.
-From version 3.2 use of MPIR is optional.
+Note that MPIR ***IS NOT*** part of ImatiSTL. The pre-compiled DLLs and
+header files are provided along with this distribution in the hope to
+ease the use of MPIR within ImatiSTL.
+MPIR is an independent software licensed under the terms of GNU LGPL v3.
 
 CGAL is used to add lazy evaluation to MPIR functionalities.
 This possibility is enabled from version 4.0 on.
 Lazy evaluation makes the code faster but more memory demanding.
+No parts of CGAL are included in this distribution.
 
 -------------------
 Building the tree

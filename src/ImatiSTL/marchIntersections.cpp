@@ -815,6 +815,94 @@ mc_grid::mc_grid(Basic_TMesh *_tin, int n)
 }
 
 
+
+//int ptrCompare(const void *a, const void *b)
+//{
+//	if (a < b) return -1;
+//	if (a>b) return 1;
+//	return 0;
+//}
+//
+//// If t's vertices belong to three different original triangles, then find their common vertex
+//// and make the triangle info point it for later split.
+//bool addSplitPointAtTriangle(Triangle *t)
+//{
+//	Triangle *t1 = (Triangle *)t->v1()->info;
+//	Triangle *t2 = (Triangle *)t->v2()->info;
+//	Triangle *t3 = (Triangle *)t->v3()->info;
+//
+//	if (t1 == t2 || t2 == t3 || t3 == t1) return false;
+//
+//	List verts;
+//	verts.appendTail(t1->v1()); verts.appendTail(t1->v2()); verts.appendTail(t1->v3());
+//	verts.appendTail(t2->v1()); verts.appendTail(t2->v2()); verts.appendTail(t2->v3());
+//	verts.appendTail(t3->v1()); verts.appendTail(t3->v2()); verts.appendTail(t3->v3());
+//	verts.sort(&ptrCompare);
+//
+//	Vertex *v, *lv = NULL;
+//	int count = 0;
+//	while ((v = (Vertex *)verts.popHead()) != NULL)
+//	{
+//		if (v != lv) { count = 0; lv = v; }	else count++;
+//		if (count == 2) break;
+//	}
+//
+//	if (v != NULL)
+//	{
+//		Point p = v->projection(t->v1(), t->v2(), t->v3());
+//		if (Point::pointInInnerTriangle(&p, t->v1(), t->v2(), t->v3()))
+//		{
+//			t->info = v;
+//			return true;
+//		}
+//	}
+//	return false;
+//}
+//
+//void restoreEdgesAndSimplifyFlatAreas(Basic_TMesh *tin)
+//{
+//	// We assume that vertices info-point their original triangles
+//
+//	Triangle *t;
+//	Edge *e;
+//	Vertex *v;
+//	Node *n;
+//
+//	FOREACHVVVERTEX((&(tin->V)), v, n) UNMARK_BIT(v, 5);
+//	FOREACHVEEDGE((&(tin->E)), e, n) { UNMARK_BIT(e, 5); UNMARK_BIT(e, 6); }
+//	FOREACHVTTRIANGLE((&(tin->T)), t, n) { UNMARK_BIT(t, 5); t->info = NULL; }
+//
+//	FOREACHVTTRIANGLE((&(tin->T)), t, n) if (!addSplitPointAtTriangle(t)) t->info = NULL;
+//	
+//	FOREACHVTTRIANGLE((&(tin->T)), t, n) if (t->info != NULL)
+//	{
+//		MARK_BIT(t->e1, 5); MARK_BIT(t->e2, 5); MARK_BIT(t->e3, 5);
+//		Point sp((Vertex *)t->info);
+//		v = tin->splitTriangle(t, &sp);
+//		MARK_BIT(v, 5);
+//	}
+//
+//	tin->removeRedundantVertices();
+//
+//	FOREACHVEEDGE((&(tin->E)), e, n) if (!e->isOnBoundary() && IS_BIT(e, 5))
+//	{
+//		if (!IS_BIT(e->t1->oppositeVertex(e), 5)) MARK_BIT(e->t1, 5);
+//		if (!IS_BIT(e->t2->oppositeVertex(e), 5)) MARK_BIT(e->t2, 5);
+//	}
+//
+//	FOREACHVEEDGE((&(tin->E)), e, n) if (!e->isOnBoundary() && IS_BIT(e->t1, 5) && IS_BIT(e->t2, 5)) MARK_BIT(e, 6);
+//
+//	FOREACHVEEDGE((&(tin->E)), e, n) if (IS_BIT(e, 5)) e->swap();
+//	FOREACHVEEDGE((&(tin->E)), e, n) if (IS_BIT(e, 6)) e->swap();
+//
+//	FOREACHVVVERTEX((&(tin->V)), v, n) UNMARK_BIT(v, 5);
+//	FOREACHVEEDGE((&(tin->E)), e, n) { UNMARK_BIT(e, 5); UNMARK_BIT(e, 6); }
+//	FOREACHVTTRIANGLE((&(tin->T)), t, n) { UNMARK_BIT(t, 5); t->info = NULL; }
+//
+//	tin->removeRedundantVertices();
+//}
+//
+
 void mc_grid::remesh(bool simplify_result)
 {
  Vertex *v;
@@ -864,10 +952,8 @@ void mc_grid::remesh(bool simplify_result)
  if (simplify_result) simplify();
  TMesh::report_progress("99 %% done   ");
 
- FOREACHVVVERTEX((&tin->V), v, n){
- 
-  v->info = NULL;
- }
+ FOREACHVVVERTEX((&tin->V), v, n) v->info = NULL;
+
  FOREACHVTTRIANGLE((&ntin.T), t, n) if (t->info) { delete ((Point *)t->info); t->info = NULL; }
  TMesh::end_progress();
 }
@@ -881,28 +967,6 @@ void mc_grid::remesh(bool simplify_result)
 
 
 
-
-bool mc_safeCollapse(Edge *e)
-{
-	Point orig(e->v2);
-	List *vt = e->v2->VT();
-	Triangle *t;
-	Node *n;
-	Point nor;
-
-	nor.setValue((Point *)e->v2->info);
-	e->v2->setValue(e->v1);
-	FOREACHVTTRIANGLE(vt, t, n) if (!t->hasEdge(e))
-	{
-		if (((*(t->v3())) + nor).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break;
-		if (t->nextVertex(e->v2)->info != e->v2->info) { if (((*(t->v3())) + (*(((Point *)t->nextVertex(e->v2)->info)))).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break; }
-		if (t->prevVertex(e->v2)->info != e->v2->info) { if (((*(t->v3())) + (*(((Point *)t->prevVertex(e->v2)->info)))).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break; }
-	}
-	delete vt;
-	e->v2->setValue(orig);
-	orig.setValue(e->v1);
-	return (n == NULL && e->collapse(orig));
-}
 
 //void mi_saveVRMLBorders(const char *filename, Basic_TMesh& tin)
 //{
@@ -945,39 +1009,27 @@ bool mc_safeCollapse(Edge *e)
 //	fclose(fp);
 //}
 
-//bool mi_getCenterPosition(Triangle *t, Vertex **cp)
-//{
-//	Vertex *v1 = t->v1(), *v2 = t->v2(), *v3 = t->v3();
-//	Triangle *ot1 = (Triangle *)(((Point *)v1->info)->info);
-//	Triangle *ot2 = (Triangle *)(((Point *)v2->info)->info);
-//	Triangle *ot3 = (Triangle *)(((Point *)v3->info)->info);
-//
-//	Vertex *cv = ot1->v1();
-//	if (!ot2->hasVertex(cv) || !ot3->hasVertex(cv)) cv = ot1->v2();
-//	if (!ot2->hasVertex(cv) || !ot3->hasVertex(cv)) cv = ot1->v3();
-//	if (!ot2->hasVertex(cv) || !ot3->hasVertex(cv)) return false;
-//
-//	*cp = cv;
-//	return true;
-//}
+bool mc_safeCollapse(Edge *e)
+{
+	Point orig(e->v2);
+	List *vt = e->v2->VT();
+	Triangle *t;
+	Node *n;
+	Point nor;
 
-//Point mi_getCenterPosition(Edge *e)
-//{
-//	Vertex *v1 = e->v1, *v2 = e->v2;
-//	Triangle *ot1 = (Triangle *)(((Point *)v1->info)->info);
-//	Triangle *ot2 = (Triangle *)(((Point *)v2->info)->info);
-//	if (ot1->commonEdge(ot2) == NULL) return e->getMidPoint();
-//
-//	Point nor1((Point *)v1->info), nor2((Point *)v2->info);
-//	if (nor1*nor2 < 0 || nor1.getAngle(nor2)<0.01) return e->getMidPoint();
-//
-//	Point nor3 = e->toVector()&nor1;
-//	Point d;
-//	d.x = (nor1*(*v1));
-//	d.y = (nor2*(*v2));
-//	d.z = (nor3*(*v2));
-//	return d.linearSystem(nor1, nor2, nor3);
-//}
+	nor.setValue((Point *)e->v2->info);
+	e->v2->setValue(e->v1);
+	FOREACHVTTRIANGLE(vt, t, n) if (!t->hasEdge(e))
+	{
+		if (((*(t->v3())) + nor).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break;
+		if (t->nextVertex(e->v2)->info != e->v2->info) { if (((*(t->v3())) + (*(((Point *)t->nextVertex(e->v2)->info)))).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break; }
+		if (t->prevVertex(e->v2)->info != e->v2->info) { if (((*(t->v3())) + (*(((Point *)t->prevVertex(e->v2)->info)))).exactOrientation(t->v1(), t->v2(), t->v3()) <= 0) break; }
+	}
+	delete vt;
+	e->v2->setValue(orig);
+	orig.setValue(e->v1);
+	return (n == NULL && e->collapse(orig));
+}
 
 void mc_grid::simplify()
 {
@@ -999,14 +1051,20 @@ void mc_grid::simplify()
 			nnor->info = t;
 	}
 
+	// Chamfer edges are marked VISIT. Same thing for their endpoints.
 	FOREACHVEEDGE((&tin->E), e, n) if (e->isOnBoundary() || e->v1->info != e->v2->info) { MARK_VISIT(e); MARK_VISIT(e->v1); MARK_VISIT(e->v2); }
+
+	// Vertices of chamfer triangles are marked VISIT2
 	FOREACHVTTRIANGLE((&tin->T), t, n) if (IS_VISITED(t->e1) && IS_VISITED(t->e2) && IS_VISITED(t->e3))
 		{ MARK_VISIT2(t->v1()); MARK_VISIT2(t->v2()); MARK_VISIT2(t->v3()); }
 
+	// Boundary vertices are marked VISIT2
+	// ies contains 'collapsable' edges whose endpoints belong to the same patch
 	List ies;
 	FOREACHVEEDGE((&tin->E), e, n)
 	 if (!e->isOnBoundary() && e->v1->info == e->v2->info) ies.appendTail(e);
 	 else if (e->isOnBoundary()) { MARK_VISIT2(e->v1); MARK_VISIT2(e->v2); }
+
 	Point nor;
 	int c;
 	do
@@ -1021,13 +1079,6 @@ void mc_grid::simplify()
 		 else if (IS_VISITED(e->v2) && !IS_VISITED2(e->v1)) e->invert();
 		 if (mc_safeCollapse(e)) c++;
 		} 
-
-		//FOREACHVEEDGE((&ies), e, n) if (e->isLinked() && !(IS_VISITED(e->v1) && IS_VISITED(e->v2)))
-		//{
-		//	double a = e->delaunayMinAngle();
-		//	nor.setValue((Point *)e->v2->info);
-		//	if (e->swap()) { if ((e->t1->getVector()*nor<0) || (e->t2->getVector()*nor<0) || e->delaunayMinAngle() <= a) e->swap(true); }
-		//}
 	} while (c);
 
 	tin->removeUnlinkedElements();
@@ -1035,6 +1086,9 @@ void mc_grid::simplify()
 	FOREACHVEEDGE((&tin->E), e, n) e->mask = 0;
 	FOREACHVVVERTEX((&tin->V), v, n) v->mask = 0;
 }
+
+
+
 
 
 void TriMesh::latticeRemesh(UINT16 gridsize, bool simpl)

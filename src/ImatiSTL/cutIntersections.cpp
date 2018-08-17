@@ -1180,7 +1180,7 @@ void ci_subdivideTriangles(TriMesh *tin, ci_Triangles& trilist, clock_t timeout_
 		if (timeout_secs && !(ntris % 1000)) ImatiSTL::exitOnTimeout();
 		ntris--;
 	}
-
+	
 	for (i = 0; i<(int)triarray.size(); i++) inters->moveMeshElements(triarray[i]);
 	triarray.clear();
 
@@ -1198,7 +1198,6 @@ void ci_subdivideTriangles(TriMesh *tin, ci_Triangles& trilist, clock_t timeout_
 	TriMesh *otg = (TriMesh *)tin->createSubMeshFromSelection();
 	if (otg) inters->moveMeshElements(otg);
 	if (_write_additional_files) inters->saveVRML1("splitMesh.wrl");
-
 	tin->T.freeNodes(); tin->E.freeNodes(); tin->V.freeNodes();
 	tin->moveMeshElements(inters);
 }
@@ -1303,7 +1302,9 @@ bool rm_cutIntersectingTriangles(TriMesh *tin, bool waf =false, int timeout_secs
  // (4) Create copies of the intersecting triangles with segments inserted as constraints
  printf("Subdividing triangles\n");
  ci_subdivideTriangles(tin, trilist, timeout_secs);
- ImatiSTL::printElapsedTime();
+
+ //ImatiSTL::printElapsedTime();
+ //tin->saveOFF("cut.off");
 
  ImatiSTL::useRationals(old_status);
 

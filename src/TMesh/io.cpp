@@ -44,6 +44,8 @@ namespace T_MESH
 #define VRML2_HSIZE			15
 #define OFF_HEADER 			"OFF"
 #define OFF_HSIZE			3
+#define COFF_HEADER 		"COFF"
+#define COFF_HSIZE			4
 #define EFF_HEADER 			"EFF"
 #define EFF_HSIZE			3
 #define PLY_HEADER 			"ply"
@@ -182,6 +184,7 @@ int Basic_TMesh::load(const char *fname, const bool doupdate)
  if (as >= VRML1_HSIZE && !strncmp(header, VRML1_HEADER, VRML1_HSIZE)) err = loadVRML1(fname);
  else if (as >= VRML2_HSIZE && !strncmp(header, VRML2_HEADER, VRML2_HSIZE)) err = loadVRML2(fname);
  else if (as >= OFF_HSIZE && !strncmp(header, OFF_HEADER, OFF_HSIZE)) err = loadOFF(fname);
+ else if (as >= COFF_HSIZE && !strncmp(header, COFF_HEADER, COFF_HSIZE)) err = loadOFF(fname);
  else if (as >= EFF_HSIZE && !strncmp(header, EFF_HEADER, EFF_HSIZE)) err = loadEFF(fname);
  else if (as >= PLY_HSIZE && !strncmp(header, PLY_HEADER, PLY_HSIZE)) err = loadPLY(fname);
  else if (as >= IV_HSIZE && !strncmp(header, IV_HEADER, IV_HSIZE)) err = loadIV(fname);
@@ -227,7 +230,7 @@ int Basic_TMesh::save(const char *fname, bool back_approx)
  else if (sameString(nfname+i, ".iv")) rv = saveIV(nfname);
  else if (sameString(nfname + i, ".off")) rv = saveOFF(nfname);
  else if (sameString(nfname + i, ".eff")) rv = saveEFF(nfname);
- else if (sameString(nfname + i, ".ply")) rv = savePLY(nfname);
+ else if (sameString(nfname + i, ".ply")) rv = savePLY(nfname, false);
  else if (sameString(nfname+i, ".obj")) rv = saveOBJ(nfname);
  else if (sameString(nfname+i, ".stl")) rv = saveSTL(nfname);
  else if (sameString(nfname+i, ".tri")) {nfname[i]='\0'; rv = saveVerTri(nfname);}
@@ -347,570 +350,6 @@ void Basic_TMesh::coordBackApproximation()
  }
 }
 
-////////////////////// Loads VRML 1.0 format ///////////////////////////
-
-int Basic_TMesh::loadVRML1(const char *fname)
-{
- FILE *fp;
- Node *n;
- float x,y,z;
- int i,i1,i2,i3,i4,nv=0,triangulate=0;
- Vertex *v;
-
- coord cx;
-
- if ((fp = fopen(fname,"r")) == NULL) return IO_CANTOPEN;
-
- if (!seek_keyword(fp, "point")) {closeLoadingSession(fp, 0, NULL, 0); return IO_FORMAT;}
- if (!seek_keyword(fp, "[")) {closeLoadingSession(fp, 0, NULL, 0); return IO_FORMAT;}
-
- while (fscanf(fp, "%f %f %f,", &x, &y, &z) == 3) { V.appendTail(newVertex(x, y, z)); cx = coord(x); /*printf("%f %f\n", x, cx.toFloat());*/ }
- nv = V.numels();
- ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
- i = 0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
-
- if (!seek_keyword(fp, "coordIndex")) {closeLoadingSession(fp, 0, var, 0); return IO_FORMAT;}
- if (!seek_keyword(fp, "[")) {closeLoadingSession(fp, 0, var, 0); return IO_FORMAT;}
-
- i=0; TMesh::begin_progress();
- while (fscanf(fp,"%d, %d, %d,",&i1,&i2,&i3) == 3)
- {
-  if (((i++)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
-  if (i1<0 || i2<0 || i3<0 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1))
-	  TMesh::error("\nloadVRML1: Invalid indices %d %d %d!\n",i1,i2,i3);
-  do
-  {
-   if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVRML1: Coincident indexes at face %d! Skipping.\n",i);
-   else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadVRML1: This shouldn't happen!!! Skipping triangle.\n");
-   if (fscanf(fp,"%d,",&i4) != 1) TMesh::error("loadVRML1: Unexpected end of file at face %d!\n",i);
-   i2=i3; i3=i4;
-   if (i4 != -1) triangulate=1;
-  } while (i4 != -1);
- }
- TMesh::end_progress();
-
- closeLoadingSession(fp, i, var, (triangulate != 0));
- TMesh::setFilename(fname);
-
- return 0;
-}
-
-
-int Basic_TMesh::loadIV(const char *fname)
-{
- return loadVRML1(fname);
-}
-
-
-////////////////////// Loads OFF format ///////////////////////////
-
-int Basic_TMesh::loadOFF(const char *fname)
-{
- FILE *fp;
- Node *n;
- char s[256], *line;
- float x,y,z;
- int i,j,i1,i2,i3,i4,nv,nt,ne,triangulate=0;
- Vertex *v;
-
- if ((fp = fopen(fname,"rb")) == NULL) return IO_CANTOPEN;
-
- fscanf(fp,"%255s",s);
- if (strcmp(s,"OFF") || feof(fp)) return IO_FORMAT;
- do {line = readLineFromFile(fp);} while (line[0] == '#' || line[0] == '\0' || !sscanf(line,"%256s",s));
- if (sscanf(line,"%d %d %d",&nv,&nt,&ne) < 3) return IO_FORMAT;
- if (nv < 3) TMesh::error("\nloadOFF: Sorry. Can't load objects with less than 3 vertices.\n");
- if (nt < 1) TMesh::error("\nloadOFF: Sorry. Can't load objects with no faces.\n");
-
- skipCommentAndBlankLines(fp);
-
- for (i = 0; i<nv; i++)
-  if (fscanf(fp,"%f %f %f",&x,&y,&z) == 3) V.appendTail(newVertex(x,y,z));
-  else TMesh::error("\nloadOFF: Couldn't read coordinates for vertex # %d\n",i);
-
- ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
- i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
-
- skipCommentAndBlankLines(fp);
-
- TMesh::begin_progress();
- for (i=0; i<nt; i++)
- {
-  if (fscanf(fp,"%d %d %d %d",&i4,&i1,&i2,&i3) == 4)
-  {
-   if ((i%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
-   if (i1<0 || i2<0 || i3<0 || i4<3 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1)) TMesh::error("\nloadOFF: Invalid index at face %d!\n",i);
-   for (j=3; j<=i4; j++)
-   {
-    if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadOFF: Coincident indexes at triangle %d! Skipping.\n",i);
-    else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadOFF: This shouldn't happen!!! Skipping triangle.\n");
-    i2 = i3;
-    if (j<i4)
-    {
-     if (fscanf(fp,"%d",&i3) != 1) TMesh::error("\nloadOFF: Couldn't read indexes for face # %d\n",i);
-     else triangulate=1;
-    }
-   }
-  }
-  else TMesh::error("\nloadOFF: Couldn't read indexes for face # %d\n",i);
- }
-
- TMesh::end_progress();
-
- closeLoadingSession(fp, i, var, (triangulate != 0));
- TMesh::setFilename(fname);
-
- return 0;
-}
-
-////////////////////// Loads EFF format ///////////////////////////
-
-int Basic_TMesh::loadEFF(const char *fname)
-{
-	std::ifstream is;
-	is.open(fname);
-	if (!is.is_open()) return IO_CANTOPEN;
-	Node *n;
-	char s[256];
-	coord x, y, z;
-	int i, i1, i2, i3, nv=-1, nt=-1, triangulate = 0;
-	Vertex *v;
-
-
-	is >> s;
-	if (is.eof() || is.fail() || strcmp(s, "EFF")) return IO_FORMAT;
-	is >> nv; if (is.eof() || is.fail()) return IO_FORMAT;
-	is >> nt; if (is.eof() || is.fail()) return IO_FORMAT;
-	if (nv < 3) TMesh::error("\nloadOFF: Sorry. Can't load objects with less than 3 vertices.\n");
-	if (nt < 1) TMesh::error("\nloadOFF: Sorry. Can't load objects with no faces.\n");
-
-	TMesh::useRationals(true);
-	for (i = 0; i < nv; i++)
-	{
-		is >> x >> y >> z;
-		if (is.eof() || is.fail()) TMesh::error("\nloadEFF: Couldn't read coordinates for vertex # %d\n", i);
-		V.appendTail(newVertex(x, y, z));
-	}
-
-	ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
-	i = 0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
-
-	TMesh::begin_progress();
-	for (i = 0; i<nt; i++)
-	{
-		is >> i1 >> i2 >> i3;
-		if (is.eof() || is.fail()) TMesh::error("\nloadEFF: Couldn't read indexes for face # %d\n", i);
-		else
-		{
-			if ((i % 1000) == 0) TMesh::report_progress("Loading ..%d%%", (i * 100) / (nv * 2));
-			if (i1<0 || i2<0 || i3<0 || i1>(nv - 1) || i2>(nv - 1) || i3>(nv - 1)) TMesh::error("\nloadEFF: Invalid index at face %d!\n", i);
-			if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadEFF: Coincident indexes at triangle %d! Skipping.\n", i);
-			else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadEFF: This shouldn't happen!!! Skipping triangle.\n");
-		}
-	}
-
-	TMesh::end_progress();
-
-	is.close();
-
-	for (i = 0; i<nv; i++) delete(var[i]);
-	free(var);
-
-	TMesh::info("Loaded %d vertices and %d faces.\n", nv, nt);
-	fixConnectivity();
-
-	d_boundaries = d_handles = d_shells = 1;
-	TMesh::setFilename(fname);
-
-	return 0;
-}
-
-////////////////////// Loads VRML 2.0 format ///////////////////////////
-
-int Basic_TMesh::loadVRML2(const char *fname)
-{
- FILE *fp;
- Node *n;
- float x,y,z;
- int i,i1,i2,i3,i4,nv=0,triangulate=0;
- Vertex *v;
-
- if ((fp = fopen(fname,"r")) == NULL) return IO_CANTOPEN;
-
- if (!seek_keyword(fp, "point")) {fclose(fp); return IO_FORMAT;}
- if (!seek_keyword(fp, "[")) {fclose(fp); return IO_FORMAT;}
-
- while (fscanf(fp,"%f %f %f,",&x,&y,&z) == 3) V.appendTail(newVertex(x,y,z));
- nv = V.numels();
-
- if (!seek_keyword(fp, "coordIndex")) {fclose(fp); return IO_FORMAT;}
- if (!seek_keyword(fp, "[")) {fclose(fp); return IO_FORMAT;}
-
- ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
- i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
-
- i=0;
- TMesh::begin_progress();
- while (fscanf(fp,"%d, %d, %d,",&i1,&i2,&i3) == 3)
- {
-  if (((i++)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
-  if (i1<0 || i2<0 || i3<0 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1)) TMesh::error("\nloadVRML2: Invalid index at face %d!\n",i);
-  do
-  {
-   if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVRML2: Coincident indexes at triangle %d! Skipping.\n",i);
-   else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadVRML2: This shouldn't happen!!! Skipping triangle.\n");
-   if (fscanf(fp,"%d,",&i4) != 1) TMesh::error("loadVRML2: Unexpected end of file at triangle %d!\n",i);
-   i2=i3; i3=i4;
-   if (i4 != -1) triangulate=1;
-  } while (i4 != -1);
- }
- TMesh::end_progress();
-
- closeLoadingSession(fp, i, var, (triangulate != 0));
- TMesh::setFilename(fname);
-
- return 0;
-}
-
-
-////////////////////// Loads Ver-Tri format ////////////////////
-
-int Basic_TMesh::loadVerTri(const char *fname)
-{
- FILE *fpv, *fpt;
- int numvers, numtris, i, i1, i2, i3, a1, a2, a3;
- float x,y,z;
- char vername[256], triname[256];
- Node *n;
- Vertex *v;
-
- if (!sameString((char *)(fname+strlen(fname)-4), (char *)".tri")) return IO_UNKNOWN;
-
- strcpy(triname,fname);
- strcpy(vername,fname); vername[strlen(vername)-4]='\0';
- strcat(vername,".ver");
-
- if ((fpv = fopen(vername,"r")) == NULL)
- {
-  fprintf(stderr,"Can't open '%s' for input !\n",vername);
-  return 1;
- }
- if ((fpt = fopen(triname,"r")) == NULL)
- {
-  fclose(fpv);
-  fprintf(stderr,"Can't open '%s' for input !\n",triname);
-  return 1;
- }
-
- if (!fscanf(fpv,"%d\n",&numvers) || numvers < 3) {fclose(fpv); fclose(fpt); return IO_FORMAT;}
- if (!fscanf(fpt,"%d\n",&numtris) || numtris < 1) {fclose(fpv); fclose(fpt); return IO_FORMAT;}
-
- for (i=0; i<numvers; i++)
-  if (fscanf(fpv,"%f %f %f\n",&x,&y,&z) != 3) TMesh::error("Couldn't read %d'th vertex!\n",i+1);
-  else V.appendTail(newVertex(x,y,z));
- fclose(fpv);
-
- ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*numvers);
- i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
-
- TMesh::begin_progress();
- for (i=0; i<numtris; i++)
-  if (fscanf(fpt,"%d %d %d %d %d %d",&i1,&i2,&i3,&a1,&a2,&a3) == 6)
-  {
-   if (((i)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(numtris));
-   if (i1 < 1 || i2 < 1 || i3 < 1) TMesh::error("\nloadVerTri: Illegal index at triangle %d!\n",i);
-   else if (i1 > (numvers) || i2 > (numvers) || i3 > (numvers)) TMesh::error("\nloadVerTri: Index out of bounds at triangle %d!\n",i);
-   else if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVerTri: Coincident indexes at triangle %d! Skipping.\n",i);
-   else if (!CreateIndexedTriangle(var, i1-1, i2-1, i3-1)) TMesh::warning("\nloadVerTri: This shouldn't happen!!! Skipping triangle.\n");
-  }
-  else TMesh::error("loadVerTri: Couldn't read %dth triangle !\n",i+1);
-
- TMesh::end_progress();
-
- closeLoadingSession(fpt, T.numels(), var, 0);
- TMesh::setFilename(fname);
-
- return 0;
-}
-
-
-////////////////////// Saves IV 2.1 format ////////////////////
-
-int Basic_TMesh::saveIV(const char *fname)
-{
- FILE *fp;
- int i;
- char triname[256];
- Node *n;
- coord *ocds;
- Vertex *v;
-
- strcpy(triname,fname);
- 
- if ((fp = fopen(triname,"w")) == NULL)
- {
-  TMesh::warning("Can't open '%s' for output !\n",triname);
-  return 1;
- }
-
- fprintf(fp,"#Inventor V2.1 ascii\n\n");
- PRINT_HEADING_COMMENT(fp);
- fprintf(fp,"Separator {\n");
- fprintf(fp," Coordinate3 {\n  point [\n");
-
- FOREACHVERTEX(v, n) fprintf(fp, "   %f %f %f,\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
-
- fprintf(fp,"  ]\n }\n");
- fprintf(fp," IndexedFaceSet {\n  coordIndex [\n");
-
- ocds = new coord[V.numels()];
- i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
- i=0; FOREACHVERTEX(v, n) v->x = i++;
-
- FOREACHNODE(T, n) fprintf(fp,"   %d, %d, %d, -1,\n",TVI1(n),TVI2(n),TVI3(n));
-
- fprintf(fp,"  ]\n }\n");
- fprintf(fp,"}\n");
- 
- fclose(fp);
- i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
- delete[] ocds;
-
- return 0;
-}
-
-
-////////////////////// Saves VRML 1.0 format ////////////////////
-
-int Basic_TMesh::saveVRML1(const char *fname, const int mode)
-{
- FILE *fp;
- int i;
- unsigned int pkc;
- char triname[256];
- Node *n;
- Vertex *v;
- Triangle *t;
- coord *ocds;
-
- strcpy(triname,fname);
- 
- if ((fp = fopen(triname,"w")) == NULL)
- {
-  TMesh::warning("Can't open '%s' for output !\n",triname);
-  return 1;
- }
-
- fprintf(fp,"#VRML V1.0 ascii\n\n");
- PRINT_HEADING_COMMENT(fp);
- fprintf(fp,"Separator {\n");
- fprintf(fp," Coordinate3 {\n  point [\n");
- 
- FOREACHVERTEX(v, n) fprintf(fp, "   %f %f %f,\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
-
- fprintf(fp,"  ]\n }\n");
-
- ocds = new coord[V.numels()];
- i=0; FOREACHVERTEX(v, n) {ocds[i] = v->x; v->x = i++;}
-
- switch (mode)
- {
-  case IO_CSAVE_OVERALL:
-   fprintf(fp,"Material {\n diffuseColor 0.6 0.6 0.6\n}\n");
-   break;
-  case IO_CSAVE_PERFACE:
-   fprintf(fp,"Material {\n diffuseColor [\n");
-   FOREACHTRIANGLE(t, n)
-   {
-    pkc = (unsigned int)((j_voidint)t->info);
-    fprintf(fp,"  %f %f %f,\n",((pkc>>24)&0x000000ff)/255.0,((pkc>>16)&0x000000ff)/255.0,((pkc>>8)&0x000000ff)/255.0);
-   }
-   fprintf(fp," ]\n}\nMaterialBinding {\n value PER_FACE_INDEXED\n}\n");
-   break;
-  case IO_CSAVE_PERVERTEX:
-   fprintf(fp,"Material {\n diffuseColor [\n");
-   FOREACHVERTEX(v, n)
-   {
-    pkc = (unsigned int)((j_voidint)v->info);
-    fprintf(fp,"  %f %f %f,\n",((pkc>>24)&0x000000ff)/255.0,((pkc>>16)&0x000000ff)/255.0,((pkc>>8)&0x000000ff)/255.0);
-   }
-   fprintf(fp," ]\n}\nMaterialBinding {\n value PER_VERTEX_INDEXED\n}\n");
-   break;
-  case IO_CSAVE_PERFACE_INDEXED:
-   fprintf(fp,"Material {\n diffuseColor [\n");
-   fprintf(fp,"1.0 1.0 1.0,\n1.0 0.0 0.0,\n0.0 1.0 0.0,\n0.0 0.0 1.0,\n 0.8 0.8 0.0\n");
-   fprintf(fp," ]\n}\nMaterialBinding {\n value PER_FACE_INDEXED\n}\n");
-   break;
-  case IO_CSAVE_PERVERTEX_INDEXED:
-   fprintf(fp,"Material {\n diffuseColor [\n");
-   fprintf(fp,"1.0 1.0 1.0,\n1.0 0.0 0.0,\n0.0 1.0 0.0,\n0.0 0.0 1.0,\n 0.8 0.8 0.0\n");
-   fprintf(fp," ]\n}\nMaterialBinding {\n value PER_VERTEX_INDEXED\n}\n");
-   break;
-  default: TMesh::error("Basic_TMesh::saveVRML1. Unknown mode %d\n",mode);
- }
-
- fprintf(fp," IndexedFaceSet {\n  coordIndex [\n");
-
- FOREACHTRIANGLE(t, n)
-	 fprintf(fp, "   %d, %d, %d, -1,\n", TMESH_TO_INT(t->v1()->x), TMESH_TO_INT(t->v2()->x), TMESH_TO_INT(t->v3()->x));
-
- fprintf(fp,"  ]\n");
-
- if (mode != IO_CSAVE_OVERALL)
- {
-  fprintf(fp,"  materialIndex [\n");
-  switch (mode)
-  {
-   case IO_CSAVE_PERFACE_INDEXED:
-    FOREACHTRIANGLE(t, n) fprintf(fp,"   %d,\n",t->mask);
-    break;
-   case IO_CSAVE_PERVERTEX_INDEXED:
-    FOREACHTRIANGLE(t, n) fprintf(fp,"   %d, %d, %d, -1,\n",t->v1()->mask,t->v2()->mask,t->v3()->mask);
-    break;
-   case IO_CSAVE_PERFACE:
-    i=0; FOREACHTRIANGLE(t, n) fprintf(fp,"   %d,\n",i++);
-    break;
-   case IO_CSAVE_PERVERTEX:
-   FOREACHTRIANGLE(t, n) fprintf(fp, "   %d, %d, %d, -1,\n", TMESH_TO_INT(t->v1()->x), TMESH_TO_INT(t->v2()->x), TMESH_TO_INT(t->v3()->x));
-	break;
-  }
-  fprintf(fp,"  ]\n");
- }
-
- fprintf(fp," }\n}\n");
- 
- fclose(fp);
- i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
- delete[] ocds;
-
- return 0;
-}
-
-
-////////////////////// Saves OFF format ///////////////////////////
-
-int Basic_TMesh::saveOFF(const char *fname)
-{
- FILE *fp;
- int i;
- char triname[256];
- Node *n;
- coord *ocds;
- Vertex *v;
-
- strcpy(triname,fname);
- 
- if ((fp = fopen(triname,"w")) == NULL)
- {
-  TMesh::warning("Can't open '%s' for output !\n",triname);
-  return 1;
- }
-
- fprintf(fp,"OFF\n");
- PRINT_HEADING_COMMENT(fp);
- fprintf(fp,"%d %d 0\n",V.numels(),T.numels());
- 
- FOREACHVERTEX(v, n) fprintf(fp, "%f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
-
- ocds = new coord[V.numels()];
- i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
- i=0; FOREACHVERTEX(v, n) v->x = i++;
-
- FOREACHNODE(T, n) fprintf(fp,"3 %d %d %d\n",TVI1(n),TVI2(n),TVI3(n));
- 
- fclose(fp);
- i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
- delete[] ocds;
-
- return 0;
-}
-
-
-////////////////////// Saves Ver-Tri format ////////////////////
-
-//#define SAVE_INFO
-int Basic_TMesh::saveVerTri(const char *fname)
-{
-#ifdef SAVE_INFO
- TMesh::warning("saveVerTri: Assuming that the vertex info field is allocated!\n");
- FILE *fpj;
- char jkkname[256];
-#endif
- FILE *fpv, *fpt;
- int i, i1, i2, i3, a1, a2, a3;
- char vername[256], triname[256];
- Node *n;
- Vertex *v;
- Triangle *t, *t1, *t2, *t3;
- coord *ocds;
-
- strcpy(triname,fname);
- strcpy(vername,fname);
- strcat(triname,".tri");
- strcat(vername,".ver");
-
-#ifdef SAVE_INFO
- strcpy(jkkname,fname);
- strcat(jkkname,".jkk");
-#endif
-
- if ((fpv = fopen(vername,"w")) == NULL)
- {
-  fprintf(stderr,"Can't open '%s' for output !\n",vername);
-  return 1;
- }
- if ((fpt = fopen(triname,"w")) == NULL)
- {
-  fclose(fpv);
-  fprintf(stderr,"Can't open '%s' for output !\n",triname);
-  return 1;
- }
-#ifdef SAVE_INFO
- if ((fpj = fopen(jkkname,"w")) == NULL)
- {
-  fclose(fpv); fclose(fpt); 
-  fprintf(stderr,"Can't open '%s' for output !\n",jkkname);
-  return 1;
- }
-#endif
-
- fprintf(fpv,"%d\n",V.numels());
- FOREACHVERTEX(v, n)
- {
-	 fprintf(fpv, "%f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
- }
- fclose(fpv);
-
-#ifdef SAVE_INFO
- for (n=V.tail; n != NULL; n=n->prev)
- {
-  v = ((Vertex *)n->data);
-  fprintf(fpj,"%f\n",(*((double *)(v->info))));
- }
- fclose(fpj);
-#endif
-
- ocds = new coord[V.numels()];
- i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
- i=0; FOREACHVERTEX(v, n) v->x = ++i;
- i=0; FOREACHTRIANGLE(t, n) {i++; t->info = (void *)i;}
-
- fprintf(fpt,"%d\n",T.numels());
- FOREACHTRIANGLE(t, n)
- {
-  i1 = TMESH_TO_INT(t->v1()->x); i2 = TMESH_TO_INT(t->v2()->x); i3 = TMESH_TO_INT(t->v3()->x);
-  t1 = t->t1(); t2 = t->t2(); t3 = t->t3();
-  a1 = (t1)?((long int)(t1->info)):(0); a2 = (t2)?((long int)(t2->info)):(0); a3 = (t3)?((long int)(t3->info)):(0);
-  fprintf(fpt,"%d %d %d %d %d %d\n",i1, i2, i3, a1, a2, a3);
- }
- fclose(fpt);
-
- i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
- delete[] ocds;
-
- return 0;
-}
-
 
 // Implements the cutting and stitching procedure to convert to manifold mesh //
 // Assumes that singular edges to be cut and stitched are marked as BIT5.  //
@@ -920,7 +359,7 @@ bool Basic_TMesh::pinch(Edge *e1, bool with_common_vertex)
 	List *ee = (List *)e1->info;
 	if (ee == NULL) return false;
 	Node *n = NULL;
-	Edge *e2=NULL;
+	Edge *e2 = NULL;
 	List *ve;
 
 	if (with_common_vertex)
@@ -934,14 +373,12 @@ bool Basic_TMesh::pinch(Edge *e1, bool with_common_vertex)
 			FOREACHVEEDGE(ve, e2, n) if (e2 != e1 && e2->isOnBoundary() && (*(e2->oppositeVertex(e1->v2))) == (*(e1->v1)) && e1->merge(e2)) break;
 			delete ve;
 		}
-	}
-	else //if (ee->numels()==2)
+	} else //if (ee->numels()==2)
 	{
 		if (e1->t1 != NULL)
 		{
 			FOREACHVEEDGE(ee, e2, n) if (e2 != e1 && (((*(e2->v1)) == (*(e1->v1)) && e2->t2 != NULL) || ((*(e2->v1)) == (*(e1->v2)) && e2->t1 != NULL)) && e1->merge(e2)) break;
-		}
-		else
+		} else
 		{
 			FOREACHVEEDGE(ee, e2, n) if (e2 != e1 && (((*(e2->v1)) == (*(e1->v1)) && e2->t1 != NULL) || ((*(e2->v1)) == (*(e1->v2)) && e2->t2 != NULL)) && e1->merge(e2)) break;
 		}
@@ -1027,42 +464,693 @@ int Basic_TMesh::cutAndStitch()
 	return singular_edges.numels();
 }
 
-
-//int Basic_TMesh::cutAndStitch()
-//{
-//	Edge *e1, *e2;
-//	Node *n;
-//	List cut;
-//	int i;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-//	FOREACHEDGE(e1, n) if (IS_BIT(e1, 5))
-//	{
-//		if (e1->t1 != NULL && e1->t2 != NULL)
-//		{
-//			e2 = newEdge(e1);
-//			E.appendHead(e2);
-//			e1->t2->replaceEdge(e1, e2);
-//			e2->t2 = e1->t2; e1->t2 = NULL;
-//		}
-//		cut.appendHead(e1);
-//		UNMARK_BIT(e1, 5);
-//	}
+//	P A R S E R S   A N D   S A V E R S   F O R   A L L   S U P P O R T E D   F O R M A T S
 //
-//	do
-//	{
-//		i = 0;
-//		FOREACHVEEDGE((&cut), e1, n) if (e1->v1 != NULL) i += e1->stitch();
-//	} while (i);
-//
-//	removeEdges();
-//
-//	d_boundaries = d_handles = d_shells = 1;
-//
-//	return cut.numels();
-//}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////// PLY LOADER //////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//
+// VRML V1.0
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadVRML1(const char *fname)
+{
+ FILE *fp;
+ Node *n;
+ float x,y,z;
+ int i,i1,i2,i3,i4,nv=0,triangulate=0;
+ Vertex *v;
+
+ coord cx;
+
+ if ((fp = fopen(fname,"r")) == NULL) return IO_CANTOPEN;
+
+ if (!seek_keyword(fp, "point")) {closeLoadingSession(fp, 0, NULL, 0); return IO_FORMAT;}
+ if (!seek_keyword(fp, "[")) {closeLoadingSession(fp, 0, NULL, 0); return IO_FORMAT;}
+
+ while (fscanf(fp, "%f %f %f,", &x, &y, &z) == 3) { V.appendTail(newVertex(x, y, z)); cx = coord(x); /*printf("%f %f\n", x, cx.toFloat());*/ }
+ nv = V.numels();
+ ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
+ i = 0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
+
+#ifdef USE_PER_TRIANGLE_COLORS
+ List colors;
+ if (seek_keyword(fp, "diffuseColor"))
+ {
+	 if (!seek_keyword(fp, "[")) { closeLoadingSession(fp, 0, var, 0); return IO_FORMAT; }
+	 while (fscanf(fp, "%f %f %f,", &x, &y, &z) == 3)
+	 {
+		 uint32_t r = (uint32_t)((UBYTE)(x*255.0));
+		 uint32_t g = (uint32_t)((UBYTE)(y*255.0));
+		 uint32_t b = (uint32_t)((UBYTE)(z*255.0));
+		 colors.appendTail((void *)((r << 24) + (g << 16) + (b << 8) + 255));
+	 }
+ }
+#endif
+
+ if (!seek_keyword(fp, "coordIndex")) {closeLoadingSession(fp, 0, var, 0); return IO_FORMAT;}
+ if (!seek_keyword(fp, "[")) {closeLoadingSession(fp, 0, var, 0); return IO_FORMAT;}
+
+ i=0; TMesh::begin_progress();
+ while (fscanf(fp,"%d, %d, %d,",&i1,&i2,&i3) == 3)
+ {
+  if (((i++)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
+  if (i1<0 || i2<0 || i3<0 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1))
+	  TMesh::error("\nloadVRML1: Invalid indices %d %d %d!\n",i1,i2,i3);
+  do
+  {
+   if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVRML1: Coincident indexes at face %d! Skipping.\n",i);
+   else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadVRML1: This shouldn't happen!!! Skipping triangle.\n");
+   if (fscanf(fp,"%d,",&i4) != 1) TMesh::error("loadVRML1: Unexpected end of file at face %d!\n",i);
+   i2=i3; i3=i4;
+   if (i4 != -1) triangulate=1;
+  } while (i4 != -1);
+ }
+ TMesh::end_progress();
+
+#ifdef USE_PER_TRIANGLE_COLORS
+ if (colors.numels() && seek_keyword(fp, "materialIndex"))
+ {
+	 if (!seek_keyword(fp, "[")) { closeLoadingSession(fp, 0, var, 0); return IO_FORMAT; }
+	 if (triangulate) TMesh::error("\nloadVRML1: Colors are unsupported on non triangular meshes\n");
+	 void **car = colors.toArray();
+	 n = T.tail();
+	 i = 0;
+	 while (fscanf(fp, "%d,", &i1) == 1)
+	 {
+		 if (n == NULL) TMesh::error("\nloadVRML1: Colors are more than triangles\n");
+		 Triangle *t = (Triangle *)n->data;
+		 t->setColor((uint32_t)car[i1]);
+		 n = n->prev();
+	 }
+	 free(car);
+ }
+#endif
+
+ closeLoadingSession(fp, i, var, (triangulate != 0));
+ TMesh::setFilename(fname);
+
+ return 0;
+}
+
+
+int Basic_TMesh::saveVRML1(const char *fname
+#ifndef USE_PER_TRIANGLE_COLORS
+	, const int mode
+#endif
+	)
+{
+	FILE *fp;
+	int i;
+	unsigned int pkc;
+	char triname[256];
+	Node *n;
+	Vertex *v;
+	Triangle *t;
+	coord *ocds;
+
+	strcpy(triname, fname);
+
+	if ((fp = fopen(triname, "w")) == NULL)
+	{
+		TMesh::warning("Can't open '%s' for output !\n", triname);
+		return 1;
+	}
+
+	fprintf(fp, "#VRML V1.0 ascii\n\n");
+	PRINT_HEADING_COMMENT(fp);
+	fprintf(fp, "Separator {\n");
+	fprintf(fp, " Coordinate3 {\n  point [\n");
+
+	FOREACHVERTEX(v, n) fprintf(fp, "   %f %f %f,\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
+
+	fprintf(fp, "  ]\n }\n");
+
+	ocds = new coord[V.numels()];
+	i = 0; FOREACHVERTEX(v, n) { ocds[i] = v->x; v->x = i++; }
+
+#ifndef USE_PER_TRIANGLE_COLORS
+	switch (mode)
+	{
+	case IO_CSAVE_OVERALL:
+	fprintf(fp, "Material {\n diffuseColor 0.6 0.6 0.6\n}\n");
+	break;
+	case IO_CSAVE_PERFACE:
+	fprintf(fp, "Material {\n diffuseColor [\n");
+	FOREACHTRIANGLE(t, n)
+	{
+		pkc = (unsigned int)((j_voidint)t->info);
+		fprintf(fp, "  %f %f %f,\n", ((pkc >> 24) & 0x000000ff) / 255.0, ((pkc >> 16) & 0x000000ff) / 255.0, ((pkc >> 8) & 0x000000ff) / 255.0);
+	}
+	fprintf(fp, " ]\n}\nMaterialBinding {\n value PER_FACE_INDEXED\n}\n");
+	break;
+	case IO_CSAVE_PERVERTEX:
+	fprintf(fp, "Material {\n diffuseColor [\n");
+	FOREACHVERTEX(v, n)
+	{
+		pkc = (unsigned int)((j_voidint)v->info);
+		fprintf(fp, "  %f %f %f,\n", ((pkc >> 24) & 0x000000ff) / 255.0, ((pkc >> 16) & 0x000000ff) / 255.0, ((pkc >> 8) & 0x000000ff) / 255.0);
+	}
+	fprintf(fp, " ]\n}\nMaterialBinding {\n value PER_VERTEX_INDEXED\n}\n");
+	break;
+	case IO_CSAVE_PERFACE_INDEXED:
+	fprintf(fp, "Material {\n diffuseColor [\n");
+	fprintf(fp, "1.0 1.0 1.0,\n1.0 0.0 0.0,\n0.0 1.0 0.0,\n0.0 0.0 1.0,\n 0.8 0.8 0.0\n");
+	fprintf(fp, " ]\n}\nMaterialBinding {\n value PER_FACE_INDEXED\n}\n");
+	break;
+	case IO_CSAVE_PERVERTEX_INDEXED:
+	fprintf(fp, "Material {\n diffuseColor [\n");
+	fprintf(fp, "1.0 1.0 1.0,\n1.0 0.0 0.0,\n0.0 1.0 0.0,\n0.0 0.0 1.0,\n 0.8 0.8 0.0\n");
+	fprintf(fp, " ]\n}\nMaterialBinding {\n value PER_VERTEX_INDEXED\n}\n");
+	break;
+	default: TMesh::error("Basic_TMesh::saveVRML1. Unknown mode %d\n", mode);
+	}
+#else
+	fprintf(fp, "Material {\n diffuseColor [\n");
+	FOREACHTRIANGLE(t, n)
+	{
+		pkc = t->getColor();
+		fprintf(fp, "  %f %f %f,\n", ((pkc >> 24) & 0x000000ff) / 255.0, ((pkc >> 16) & 0x000000ff) / 255.0, ((pkc >> 8) & 0x000000ff) / 255.0);
+	}
+	fprintf(fp, " ]\n}\nMaterialBinding {\n value PER_FACE_INDEXED\n}\n");
+#endif
+
+	fprintf(fp, " IndexedFaceSet {\n  coordIndex [\n");
+
+	FOREACHTRIANGLE(t, n)
+		fprintf(fp, "   %d, %d, %d, -1,\n", TMESH_TO_INT(t->v1()->x), TMESH_TO_INT(t->v2()->x), TMESH_TO_INT(t->v3()->x));
+
+	fprintf(fp, "  ]\n");
+
+#ifndef USE_PER_TRIANGLE_COLORS
+	if (mode != IO_CSAVE_OVERALL)
+	{
+		fprintf(fp, "  materialIndex [\n");
+		switch (mode)
+		{
+		case IO_CSAVE_PERFACE_INDEXED:
+		FOREACHTRIANGLE(t, n) fprintf(fp, "   %d,\n", t->mask);
+		break;
+		case IO_CSAVE_PERVERTEX_INDEXED:
+		FOREACHTRIANGLE(t, n) fprintf(fp, "   %d, %d, %d, -1,\n", t->v1()->mask, t->v2()->mask, t->v3()->mask);
+		break;
+		case IO_CSAVE_PERFACE:
+		i = 0; FOREACHTRIANGLE(t, n) fprintf(fp, "   %d,\n", i++);
+		break;
+		case IO_CSAVE_PERVERTEX:
+		FOREACHTRIANGLE(t, n) fprintf(fp, "   %d, %d, %d, -1,\n", TMESH_TO_INT(t->v1()->x), TMESH_TO_INT(t->v2()->x), TMESH_TO_INT(t->v3()->x));
+		break;
+		}
+		fprintf(fp, "  ]\n");
+	}
+#else
+	fprintf(fp, "  materialIndex [\n");
+	i = 0; FOREACHTRIANGLE(t, n) fprintf(fp, "   %d,\n", i++);
+	fprintf(fp, "  ]\n");
+#endif
+
+	fprintf(fp, " }\n}\n");
+
+	fclose(fp);
+	i = 0; FOREACHVERTEX(v, n) v->x = ocds[i++];
+	delete[] ocds;
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// Open Inventor IV
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadIV(const char *fname)
+{
+ return loadVRML1(fname);
+}
+
+
+int Basic_TMesh::saveIV(const char *fname)
+{
+	FILE *fp;
+	int i;
+	char triname[256];
+	Node *n;
+	coord *ocds;
+	Vertex *v;
+
+	strcpy(triname, fname);
+
+	if ((fp = fopen(triname, "w")) == NULL)
+	{
+		TMesh::warning("Can't open '%s' for output !\n", triname);
+		return 1;
+	}
+
+	fprintf(fp, "#Inventor V2.1 ascii\n\n");
+	PRINT_HEADING_COMMENT(fp);
+	fprintf(fp, "Separator {\n");
+	fprintf(fp, " Coordinate3 {\n  point [\n");
+
+	FOREACHVERTEX(v, n) fprintf(fp, "   %f %f %f,\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
+
+	fprintf(fp, "  ]\n }\n");
+	fprintf(fp, " IndexedFaceSet {\n  coordIndex [\n");
+
+	ocds = new coord[V.numels()];
+	i = 0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
+	i = 0; FOREACHVERTEX(v, n) v->x = i++;
+
+	FOREACHNODE(T, n) fprintf(fp, "   %d, %d, %d, -1,\n", TVI1(n), TVI2(n), TVI3(n));
+
+	fprintf(fp, "  ]\n }\n");
+	fprintf(fp, "}\n");
+
+	fclose(fp);
+	i = 0; FOREACHVERTEX(v, n) v->x = ocds[i++];
+	delete[] ocds;
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// OFF (Oject File Format)
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadOFF(const char *fname)
+{
+ FILE *fp;
+ Node *n;
+ char s[256], *line;
+ float x,y,z;
+ int i,j,i1,i2,i3,i4,nv,nt,ne,triangulate=0;
+ Vertex *v;
+ Triangle *t;
+
+ if ((fp = fopen(fname,"rb")) == NULL) return IO_CANTOPEN;
+
+ fscanf(fp,"%255s",s);
+#ifdef USE_PER_TRIANGLE_COLORS
+ bool use_colors;
+ float rgba[4];
+
+ if (feof(fp)) return IO_FORMAT;
+ else if (!strcmp(s, "OFF")) use_colors = false;
+ else if (!strcmp(s, "COFF")) use_colors = true;
+ else  return IO_FORMAT;
+#else
+ if (strcmp(s,"OFF") || feof(fp)) return IO_FORMAT;
+#endif
+ do {line = readLineFromFile(fp);} while (line[0] == '#' || line[0] == '\0' || !sscanf(line,"%256s",s));
+ if (sscanf(line,"%d %d %d",&nv,&nt,&ne) < 3) return IO_FORMAT;
+ if (nv < 3) TMesh::error("\nloadOFF: Sorry. Can't load objects with less than 3 vertices.\n");
+ if (nt < 1) TMesh::error("\nloadOFF: Sorry. Can't load objects with no faces.\n");
+
+ skipCommentAndBlankLines(fp);
+
+ for (i = 0; i<nv; i++)
+  if (fscanf(fp,"%f %f %f",&x,&y,&z) == 3) V.appendTail(newVertex(x,y,z));
+  else TMesh::error("\nloadOFF: Couldn't read coordinates for vertex # %d\n",i);
+
+ ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
+ i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
+
+ skipCommentAndBlankLines(fp);
+
+ TMesh::begin_progress();
+ for (i=0; i<nt; i++)
+ {
+  if (fscanf(fp,"%d %d %d %d",&i4,&i1,&i2,&i3) == 4)
+  {
+#ifdef USE_PER_TRIANGLE_COLORS
+	  if (use_colors && fscanf(fp, " %f %f %f %f", rgba, rgba + 1, rgba + 2, rgba + 3) != 4) TMesh::error("\nloadOFF: Invalid color at face %d!\n", i);
+#endif
+   if ((i%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
+   if (i1<0 || i2<0 || i3<0 || i4<3 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1)) TMesh::error("\nloadOFF: Invalid index at face %d!\n",i);
+   for (j=3; j<=i4; j++)
+   {
+    if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadOFF: Coincident indexes at triangle %d! Skipping.\n",i);
+    else if ((t=CreateIndexedTriangle(var, i1, i2, i3))==NULL) TMesh::warning("\nloadOFF: This shouldn't happen!!! Skipping triangle.\n");
+#ifdef USE_PER_TRIANGLE_COLORS
+	else if (use_colors) t->setColor(((UBYTE)(rgba[0] * 255.0)), ((UBYTE)(rgba[1] * 255.0)), ((UBYTE)(rgba[2] * 255.0)), ((UBYTE)(rgba[3] * 255.0)));
+#endif
+	i2 = i3;
+    if (j<i4)
+    {
+     if (fscanf(fp,"%d",&i3) != 1) TMesh::error("\nloadOFF: Couldn't read indexes for face # %d\n",i);
+     else triangulate=1;
+    }
+   }
+  }
+  else TMesh::error("\nloadOFF: Couldn't read indexes for face # %d\n",i);
+ }
+
+ TMesh::end_progress();
+
+ closeLoadingSession(fp, i, var, (triangulate != 0));
+ TMesh::setFilename(fname);
+
+ return 0;
+}
+
+
+int Basic_TMesh::saveOFF(const char *fname)
+{
+	FILE *fp;
+	int i;
+	char triname[256];
+	Node *n;
+	coord *ocds;
+	Vertex *v;
+
+	strcpy(triname, fname);
+
+	if ((fp = fopen(triname, "w")) == NULL)
+	{
+		TMesh::warning("Can't open '%s' for output !\n", triname);
+		return 1;
+	}
+
+#ifdef USE_PER_TRIANGLE_COLORS
+	fprintf(fp, "C");
+#endif
+
+	fprintf(fp, "OFF\n");
+	PRINT_HEADING_COMMENT(fp);
+	fprintf(fp, "%d %d 0\n", V.numels(), T.numels());
+
+	FOREACHVERTEX(v, n) fprintf(fp, "%f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
+
+	ocds = new coord[V.numels()];
+	i = 0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
+	i = 0; FOREACHVERTEX(v, n) v->x = i++;
+
+#ifdef USE_PER_TRIANGLE_COLORS
+	Triangle *t;
+	FOREACHNODE(T, n)
+	{
+		fprintf(fp, "3 %d %d %d", TVI1(n), TVI2(n), TVI3(n));
+		t = (Triangle *)n->data;
+		fprintf(fp, " %f %f %f %f\n", t->getRedComponent() / 255.0, t->getGreenComponent() / 255.0, t->getBlueComponent() / 255.0, t->getAlphaComponent() / 255.0);
+	}
+#else
+	FOREACHNODE(T, n) fprintf(fp, "3 %d %d %d\n", TVI1(n), TVI2(n), TVI3(n));
+#endif
+
+	fclose(fp);
+	i = 0; FOREACHVERTEX(v, n) v->x = ocds[i++];
+	delete[] ocds;
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// EFF (Exact File Format)
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadEFF(const char *fname)
+{
+	std::ifstream is;
+	is.open(fname);
+	if (!is.is_open()) return IO_CANTOPEN;
+	Node *n;
+	char s[256];
+	coord x, y, z;
+	int i, i1, i2, i3, nv=-1, nt=-1, triangulate = 0;
+	Vertex *v;
+
+
+	is >> s;
+	if (is.eof() || is.fail() || strcmp(s, "EFF")) return IO_FORMAT;
+	is >> nv; if (is.eof() || is.fail()) return IO_FORMAT;
+	is >> nt; if (is.eof() || is.fail()) return IO_FORMAT;
+	if (nv < 3) TMesh::error("\nloadOFF: Sorry. Can't load objects with less than 3 vertices.\n");
+	if (nt < 1) TMesh::error("\nloadOFF: Sorry. Can't load objects with no faces.\n");
+
+	TMesh::useRationals(true);
+	for (i = 0; i < nv; i++)
+	{
+		is >> x >> y >> z;
+		if (is.eof() || is.fail()) TMesh::error("\nloadEFF: Couldn't read coordinates for vertex # %d\n", i);
+		V.appendTail(newVertex(x, y, z));
+	}
+
+	ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
+	i = 0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
+
+	TMesh::begin_progress();
+	for (i = 0; i<nt; i++)
+	{
+		is >> i1 >> i2 >> i3;
+		if (is.eof() || is.fail()) TMesh::error("\nloadEFF: Couldn't read indexes for face # %d\n", i);
+		else
+		{
+			if ((i % 1000) == 0) TMesh::report_progress("Loading ..%d%%", (i * 100) / (nv * 2));
+			if (i1<0 || i2<0 || i3<0 || i1>(nv - 1) || i2>(nv - 1) || i3>(nv - 1)) TMesh::error("\nloadEFF: Invalid index at face %d!\n", i);
+			if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadEFF: Coincident indexes at triangle %d! Skipping.\n", i);
+			else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadEFF: This shouldn't happen!!! Skipping triangle.\n");
+		}
+	}
+
+	TMesh::end_progress();
+
+	is.close();
+
+	for (i = 0; i<nv; i++) delete(var[i]);
+	free(var);
+
+	TMesh::info("Loaded %d vertices and %d faces.\n", nv, nt);
+	fixConnectivity();
+
+	d_boundaries = d_handles = d_shells = 1;
+	TMesh::setFilename(fname);
+
+	return 0;
+}
+
+
+int Basic_TMesh::saveEFF(const char *fname)
+{
+	std::ofstream os;
+	os.open(fname);
+	if (!os.is_open())
+	{
+		TMesh::warning("Can't open '%s' for output !\n", fname);
+		return 1;
+	}
+
+	os << "EFF\n";
+	os << V.numels() << " " << T.numels() << "\n";
+
+	Node *n;
+	Vertex *v;
+	FOREACHVERTEX(v, n) os << v->x << " " << v->y << " " << v->z << "\n";
+
+	coord *ocds = new coord[V.numels()];
+	int i;
+	i = 0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
+	i = 0; FOREACHVERTEX(v, n) v->x = i++;
+
+	FOREACHNODE(T, n) os << TVI1(n) << " " << TVI2(n) << " " << TVI3(n) << "\n";
+
+	os.close();
+	i = 0; FOREACHVERTEX(v, n) v->x = ocds[i++];
+	delete[] ocds;
+
+	return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// VRML V2.0 (vrml'97)
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadVRML2(const char *fname)
+{
+ FILE *fp;
+ Node *n;
+ float x,y,z;
+ int i,i1,i2,i3,i4,nv=0,triangulate=0;
+ Vertex *v;
+
+ if ((fp = fopen(fname,"r")) == NULL) return IO_CANTOPEN;
+
+ if (!seek_keyword(fp, "point")) {fclose(fp); return IO_FORMAT;}
+ if (!seek_keyword(fp, "[")) {fclose(fp); return IO_FORMAT;}
+
+ while (fscanf(fp,"%f %f %f,",&x,&y,&z) == 3) V.appendTail(newVertex(x,y,z));
+ nv = V.numels();
+
+ if (!seek_keyword(fp, "coordIndex")) {fclose(fp); return IO_FORMAT;}
+ if (!seek_keyword(fp, "[")) {fclose(fp); return IO_FORMAT;}
+
+ ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*nv);
+ i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
+
+ i=0;
+ TMesh::begin_progress();
+ while (fscanf(fp,"%d, %d, %d,",&i1,&i2,&i3) == 3)
+ {
+  if (((i++)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
+  if (i1<0 || i2<0 || i3<0 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1)) TMesh::error("\nloadVRML2: Invalid index at face %d!\n",i);
+  do
+  {
+   if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVRML2: Coincident indexes at triangle %d! Skipping.\n",i);
+   else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadVRML2: This shouldn't happen!!! Skipping triangle.\n");
+   if (fscanf(fp,"%d,",&i4) != 1) TMesh::error("loadVRML2: Unexpected end of file at triangle %d!\n",i);
+   i2=i3; i3=i4;
+   if (i4 != -1) triangulate=1;
+  } while (i4 != -1);
+ }
+ TMesh::end_progress();
+
+ closeLoadingSession(fp, i, var, (triangulate != 0));
+ TMesh::setFilename(fname);
+
+ return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// IMATI's Ver-Tri format
+//
+////////////////////////////////////////////////////////////////////////
+
+int Basic_TMesh::loadVerTri(const char *fname)
+{
+ FILE *fpv, *fpt;
+ int numvers, numtris, i, i1, i2, i3, a1, a2, a3;
+ float x,y,z;
+ char vername[256], triname[256];
+ Node *n;
+ Vertex *v;
+
+ if (!sameString((char *)(fname+strlen(fname)-4), (char *)".tri")) return IO_UNKNOWN;
+
+ strcpy(triname,fname);
+ strcpy(vername,fname); vername[strlen(vername)-4]='\0';
+ strcat(vername,".ver");
+
+ if ((fpv = fopen(vername,"r")) == NULL)
+ {
+  fprintf(stderr,"Can't open '%s' for input !\n",vername);
+  return 1;
+ }
+ if ((fpt = fopen(triname,"r")) == NULL)
+ {
+  fclose(fpv);
+  fprintf(stderr,"Can't open '%s' for input !\n",triname);
+  return 1;
+ }
+
+ if (!fscanf(fpv,"%d\n",&numvers) || numvers < 3) {fclose(fpv); fclose(fpt); return IO_FORMAT;}
+ if (!fscanf(fpt,"%d\n",&numtris) || numtris < 1) {fclose(fpv); fclose(fpt); return IO_FORMAT;}
+
+ for (i=0; i<numvers; i++)
+  if (fscanf(fpv,"%f %f %f\n",&x,&y,&z) != 3) TMesh::error("Couldn't read %d'th vertex!\n",i+1);
+  else V.appendTail(newVertex(x,y,z));
+ fclose(fpv);
+
+ ExtVertex **var = (ExtVertex **)malloc(sizeof(ExtVertex *)*numvers);
+ i=0; FOREACHVERTEX(v, n) var[i++] = new ExtVertex(v);
+
+ TMesh::begin_progress();
+ for (i=0; i<numtris; i++)
+  if (fscanf(fpt,"%d %d %d %d %d %d",&i1,&i2,&i3,&a1,&a2,&a3) == 6)
+  {
+   if (((i)%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(numtris));
+   if (i1 < 1 || i2 < 1 || i3 < 1) TMesh::error("\nloadVerTri: Illegal index at triangle %d!\n",i);
+   else if (i1 > (numvers) || i2 > (numvers) || i3 > (numvers)) TMesh::error("\nloadVerTri: Index out of bounds at triangle %d!\n",i);
+   else if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadVerTri: Coincident indexes at triangle %d! Skipping.\n",i);
+   else if (!CreateIndexedTriangle(var, i1-1, i2-1, i3-1)) TMesh::warning("\nloadVerTri: This shouldn't happen!!! Skipping triangle.\n");
+  }
+  else TMesh::error("loadVerTri: Couldn't read %dth triangle !\n",i+1);
+
+ TMesh::end_progress();
+
+ closeLoadingSession(fpt, T.numels(), var, 0);
+ TMesh::setFilename(fname);
+
+ return 0;
+}
+
+
+int Basic_TMesh::saveVerTri(const char *fname)
+{
+ FILE *fpv, *fpt;
+ int i, i1, i2, i3, a1, a2, a3;
+ char vername[256], triname[256];
+ Node *n;
+ Vertex *v;
+ Triangle *t, *t1, *t2, *t3;
+ coord *ocds;
+
+ strcpy(triname,fname);
+ strcpy(vername,fname);
+ strcat(triname,".tri");
+ strcat(vername,".ver");
+
+
+ if ((fpv = fopen(vername,"w")) == NULL)
+ {
+  fprintf(stderr,"Can't open '%s' for output !\n",vername);
+  return 1;
+ }
+ if ((fpt = fopen(triname,"w")) == NULL)
+ {
+  fclose(fpv);
+  fprintf(stderr,"Can't open '%s' for output !\n",triname);
+  return 1;
+ }
+
+ fprintf(fpv,"%d\n",V.numels());
+ FOREACHVERTEX(v, n)
+ {
+	 fprintf(fpv, "%f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
+ }
+ fclose(fpv);
+
+ ocds = new coord[V.numels()];
+ i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
+ i=0; FOREACHVERTEX(v, n) v->x = ++i;
+ i=0; FOREACHTRIANGLE(t, n) {i++; t->info = (void *)i;}
+
+ fprintf(fpt,"%d\n",T.numels());
+ FOREACHTRIANGLE(t, n)
+ {
+  i1 = TMESH_TO_INT(t->v1()->x); i2 = TMESH_TO_INT(t->v2()->x); i3 = TMESH_TO_INT(t->v3()->x);
+  t1 = t->t1(); t2 = t->t2(); t3 = t->t3();
+  a1 = (t1)?((long int)(t1->info)):(0); a2 = (t2)?((long int)(t2->info)):(0); a3 = (t3)?((long int)(t3->info)):(0);
+  fprintf(fpt,"%d %d %d %d %d %d\n",i1, i2, i3, a1, a2, a3);
+ }
+ fclose(fpt);
+
+ i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
+ delete[] ocds;
+
+ return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+// PLY format
+//
+////////////////////////////////////////////////////////////////////////
 
 int ply_parseElements(FILE *in, const char *elname)
 {
@@ -1089,15 +1177,15 @@ void ply_checkVertexProperties(FILE *in)
  char keyword[64], dtype[64], dval[64];
  if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
- if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
+ if (strcmp(dtype, "float") && strcmp(dtype, "float32") && strcmp(dtype, "float64")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"x")) TMesh::error("'x' float property expected!\n");
  if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
- if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
+ if (strcmp(dtype, "float") && strcmp(dtype, "float32") && strcmp(dtype, "float64")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"y")) TMesh::error("'y' float property expected!\n");
  if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
- if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
+ if (strcmp(dtype, "float") && strcmp(dtype, "float32") && strcmp(dtype, "float64")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"z")) TMesh::error("'z' float property expected!\n");
 }
 
@@ -1117,8 +1205,8 @@ int ply_getOverhead(FILE *in, int format, const char *element)
   if (!strcmp(ptype, "char") || !strcmp(ptype, "uchar")) oh += (format)?(1):1;
   else if (!strcmp(ptype, "short") || !strcmp(ptype, "ushort")) oh += (format)?(2):1;
   else if (!strcmp(ptype, "int") || !strcmp(ptype, "uint") || 
-           !strcmp(ptype, "float") || !strcmp(ptype,"float32")) oh += (format)?(4):1;
-  else if (!strcmp(ptype, "double")) oh += (format)?(8):1;
+	  !strcmp(ptype, "float") || !strcmp(ptype, "float32")) oh += (format) ? (4) : 1;
+  else if (!strcmp(ptype, "double") || !strcmp(ptype, "float64")) oh += (format) ? (8) : 1;
   else if (!strcmp(ptype, "list")) TMesh::error("list properties other than face indices are not supported!\n");
   else TMesh::error("Unrecognized property type!\n");
   if (!sscanf(readLineFromFile(in),"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
@@ -1128,7 +1216,8 @@ int ply_getOverhead(FILE *in, int format, const char *element)
  return oh;
 }
 
-void ply_checkFaceProperties(FILE *in)
+// Returns true if RGBA color channels are defined per face
+bool ply_checkFaceProperties(FILE *in)
 {
  char keyword[64], ltype[64], uctype[64], dtype[64], dval[64];
  if (fscanf(in,"%64s %64s %64s %64s %64s\n",keyword,ltype,uctype,dtype,dval) < 5) TMesh::error("Unexpected token or end of file!\n");
@@ -1137,6 +1226,15 @@ void ply_checkFaceProperties(FILE *in)
  if (strcmp(uctype,"uchar") && strcmp(uctype,"uint8")) TMesh::error("uchar property expected!\n");
  if (strcmp(dtype,"int") && strcmp(dtype,"int32")) TMesh::error("int property expected!\n");
  if (strcmp(dval,"vertex_indices")) TMesh::error("vertex_indices property expected!\n");
+#ifndef USE_PER_TRIANGLE_COLORS
+ return false;
+#endif
+ long pos = ftell(in);
+ if (fscanf(in, "%64s %64s %64s\n", keyword, dtype, dval) != 3 || strcmp(keyword, "property") || strcmp(dtype, "uchar") || strcmp(dval, "red")) { fseek(in, pos, SEEK_SET); return false; }
+ if (fscanf(in, "%64s %64s %64s\n", keyword, dtype, dval) != 3 || strcmp(keyword, "property") || strcmp(dtype, "uchar") || strcmp(dval, "green")) { fseek(in, pos, SEEK_SET); return false; }
+ if (fscanf(in, "%64s %64s %64s\n", keyword, dtype, dval) != 3 || strcmp(keyword, "property") || strcmp(dtype, "uchar") || strcmp(dval, "blue")) { fseek(in, pos, SEEK_SET); return false; }
+ if (fscanf(in, "%64s %64s %64s\n", keyword, dtype, dval) != 3 || strcmp(keyword, "property") || strcmp(dtype, "uchar") || strcmp(dval, "alpha")) { fseek(in, pos, SEEK_SET); return false; }
+ return true;
 }
 
 void ply_readOverhead(FILE *in, int format, int oh)
@@ -1146,7 +1244,6 @@ void ply_readOverhead(FILE *in, int format, int oh)
  if (format == PLY_FORMAT_ASCII) for (i=0; i<oh; i++) fscanf(in, "%s", token);
  else for (i=0; i<oh; i++) fgetc(in);
 }
-
 
 int ply_readVCoords(FILE *in, int format, int ph, int oh, float *x, float *y, float *z)
 {
@@ -1211,6 +1308,58 @@ int ply_readAnotherFIndex(FILE *in, int format, int *x)
  return 1;
 }
 
+
+int ply_readAllFIndices(FILE *in, int format, int ph, int *nv, int **indices)
+{
+	unsigned char nvs;
+
+	ply_readOverhead(in, format, ph);
+
+	if (format == PLY_FORMAT_ASCII) 
+	{
+		fscanf(in, "%d", nv);
+		*indices = (int *)malloc((*nv)*sizeof(int));
+		for (int i = 0; i<(*nv); i++) fscanf(in, " %d", &((*indices)[i]));
+	}
+	else
+	{
+		fread(&nvs, sizeof(UBYTE), 1, in);
+
+		*nv = (int)nvs;
+		*indices = (int *)malloc((*nv)*sizeof(int));
+		fread(*indices, sizeof(int), (*nv), in);
+
+		if (format == PLY_FORMAT_BIN_B)
+		{
+			for (int i = 0; i < (*nv); i++) endian_swap_long((unsigned char *)((indices[i])));
+		}
+	}
+
+	return 1;
+}
+
+void ply_readFaceColor(FILE *in, int format, UBYTE *red, UBYTE *green, UBYTE *blue, UBYTE *alpha)
+{
+	if (format == PLY_FORMAT_ASCII)
+	{
+		unsigned int r, g, b, a;
+		fscanf(in, "%u %u %u %u", &r, &g, &b, &a);
+		*red = r;
+		*green = g;
+		*blue = b;
+		*alpha = a;
+	}
+	else
+	{
+		UBYTE rgba[4];
+		fread(rgba, sizeof(UBYTE), 4, in);
+		*red = rgba[0];
+		*green = rgba[1];
+		*blue = rgba[2];
+		*alpha = rgba[3];
+	}
+}
+
 int Basic_TMesh::loadPLY(const char *fname)
 {
  int format=0, voh, foh, vph, fph;
@@ -1219,7 +1368,9 @@ int Basic_TMesh::loadPLY(const char *fname)
  bool triangulate = 0;
  FILE *in;
  char keyword[64], formats[24], version[10];
+ UBYTE red, green, blue, alpha;
  Vertex *v;
+ Triangle *t;
  Node *n;
 
  if ((in = fopen(fname,"rb")) == NULL) TMesh::error("Can't open input ply file\n");
@@ -1238,7 +1389,7 @@ int Basic_TMesh::loadPLY(const char *fname)
  voh = ply_getOverhead(in, format, "vertex");
  nt = ply_parseElements(in, "face");
  fph = ply_getOverhead(in, format, "face");
- ply_checkFaceProperties(in);
+ bool has_colors = ply_checkFaceProperties(in);
  foh = ply_getOverhead(in, format, "face");
 
  if (!sscanf(readLineFromFile(in),"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
@@ -1256,27 +1407,34 @@ int Basic_TMesh::loadPLY(const char *fname)
 
  i=0;
  TMesh::begin_progress();
- for (i=0; i<nt; i++)
+
+ int *indices;
+ for (i = 0; i<nt; i++)
  {
-  if (ply_readFIndices(in, format, fph, &i4, &i1, &i2, &i3))
-  {
-   if ((i%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
-   if (i1<0 || i2<0 || i3<0 || i4<3 || i1>(nv-1) || i2>(nv-1) || i3>(nv-1)) TMesh::error("\nloadPLY: Invalid index at face %d!\n",i);
-   for (j=3; j<=i4; j++)
-   {
-    if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadPLY: Coincident indexes at triangle %d! Skipping.\n",i);
-    else if (!CreateIndexedTriangle(var, i1, i2, i3)) TMesh::warning("\nloadPLY: This shouldn't happen!!! Skipping triangle.\n");
-    i2 = i3;
-    if (j<i4)
-    {
-     if (!ply_readAnotherFIndex(in, format, &i3)) TMesh::error("\nloadPLY: Couldn't read indexes for face # %d\n",i);
-     else triangulate=1;
-    }
-    else ply_readOverhead(in, format, foh);
-   }
-  }
-  else TMesh::error("\nloadPLY: Couldn't read indexes for face # %d\n",i);
+	 if (ply_readAllFIndices(in, format, fph, &i4, &indices))
+	 {
+		 if (has_colors) ply_readFaceColor(in, format, &red, &green, &blue, &alpha);
+		 i1 = indices[0]; i2 = indices[1]; i3 = indices[2];
+		 if ((i % 1000) == 0) TMesh::report_progress("Loading ..%d%%", (i * 100) / (nv * 2));
+		 if (i1<0 || i2<0 || i3<0 || i4<3 || i1>(nv - 1) || i2>(nv - 1) || i3>(nv - 1)) TMesh::error("\nloadPLY: Invalid index at face %d!\n", i);
+		 for (j = 3; j <= i4; j++)
+		 {
+			 if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadPLY: Coincident indexes at triangle %d! Skipping.\n", i);
+			 else if ((t=CreateIndexedTriangle(var, i1, i2, i3))==NULL) TMesh::warning("\nloadPLY: This shouldn't happen!!! Skipping triangle.\n");
+#ifdef USE_PER_TRIANGLE_COLORS
+			 else if (has_colors) t->setColor(red, green, blue, alpha);
+#endif
+			 i2 = i3;
+			 if (j<i4)
+			 {
+				 i3 = indices[j];
+				 triangulate = 1;
+			 } else ply_readOverhead(in, format, foh);
+		 }
+	 } else TMesh::error("\nloadPLY: Couldn't read indexes for face # %d\n", i);
+	 free(indices);
  }
+
  TMesh::end_progress();
 
  closeLoadingSession(in, i, var, triangulate);
@@ -1284,9 +1442,6 @@ int Basic_TMesh::loadPLY(const char *fname)
 
  return 0;
 }
-
-
-////////////////////// Saves PLY format ///////////////////////////
 
 int Basic_TMesh::savePLY(const char *fname, bool ascii)
 {
@@ -1301,7 +1456,7 @@ int Basic_TMesh::savePLY(const char *fname, bool ascii)
 
  strcpy(triname,fname);
  
- if ((fp = fopen(triname,"w")) == NULL)
+ if ((fp = fopen(triname,"wb")) == NULL)
  {
   TMesh::warning("Can't open '%s' for output !\n",triname);
   return 1;
@@ -1317,6 +1472,12 @@ int Basic_TMesh::savePLY(const char *fname, bool ascii)
  fprintf(fp,"property float z\n");
  fprintf(fp,"element face %d\n",T.numels());
  fprintf(fp,"property list uchar int vertex_indices\n");
+#ifdef USE_PER_TRIANGLE_COLORS
+ fprintf(fp, "property uchar red\n");
+ fprintf(fp, "property uchar green\n");
+ fprintf(fp, "property uchar blue\n");
+ fprintf(fp, "property uchar alpha\n");
+#endif
  fprintf(fp,"end_header\n");
  
  if (ascii) FOREACHVERTEX(v, n) fprintf(fp, "%f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
@@ -1330,14 +1491,38 @@ int Basic_TMesh::savePLY(const char *fname, bool ascii)
  i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
  i=0; FOREACHVERTEX(v, n) v->x = i++;
 
- if (ascii) FOREACHNODE(T, n) fprintf(fp,"3 %d %d %d\n",TVI1(n),TVI2(n),TVI3(n));
- else FOREACHNODE(T, n)
+ if (ascii)
  {
-  ii[0]=TVI1(n); ii[1]=TVI2(n); ii[2]=TVI3(n);
-  fwrite(&ii0, sizeof(unsigned char), 1, fp);
-  fwrite(ii, sizeof(int), 3, fp);
+#ifdef USE_PER_TRIANGLE_COLORS
+	 Triangle *t;
+	 FOREACHNODE(T, n)
+	 {
+		 fprintf(fp, "3 %d %d %d", TVI1(n), TVI2(n), TVI3(n));
+		 t = (Triangle *)n->data;
+		 fprintf(fp, " %u %u %u %u\n", t->getRedComponent(), t->getGreenComponent(), t->getBlueComponent(), t->getAlphaComponent());
+	 }
+#else
+	 FOREACHNODE(T, n) fprintf(fp, "3 %d %d %d\n", TVI1(n), TVI2(n), TVI3(n));
+#endif
  }
-
+ else
+ {
+	 FOREACHNODE(T, n)
+	 {
+		 ii[0] = TVI1(n); ii[1] = TVI2(n); ii[2] = TVI3(n);
+		 fwrite(&ii0, sizeof(unsigned char), 1, fp);
+		 fwrite(ii, sizeof(int), 3, fp);
+#ifdef USE_PER_TRIANGLE_COLORS
+		 UBYTE rgba[4];
+		 Triangle *t = (Triangle *)n->data;
+		 rgba[0] = t->getRedComponent();
+		 rgba[1] = t->getGreenComponent();
+		 rgba[2] = t->getBlueComponent();
+		 rgba[3] = t->getAlphaComponent();
+		 fwrite(rgba, sizeof(UBYTE), 4, fp);
+#endif
+	 }
+ }
  fclose(fp);
  i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
  delete[] ocds;
@@ -1346,28 +1531,40 @@ int Basic_TMesh::savePLY(const char *fname, bool ascii)
 }
 
 
-////////////////////// Loads OBJ format ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+//
+// OBJ format
+//
+////////////////////////////////////////////////////////////////////////
 
 int Basic_TMesh::loadOBJ(const char *fname)
 {
- FILE *fp;
+ FILE *fp, *colp = NULL;
  Node *n;
- char c, cmd[3] = "";
+ char *line, cmd[3] = "";
  float x,y,z;
  bool face_section = 0;
  int i=0,i1,i2,i3,nv=0,triangulate=0;
  Vertex *v;
  ExtVertex **var=NULL;
+ Triangle *t;
+#ifdef USE_PER_TRIANGLE_COLORS
+ char colorname[32];
+ float red, green, blue;
+ List colors; // Use colorname(*char) -> red(float) -> green(float) -> blue(float)
+#endif
 
  if ((fp = fopen(fname,"r")) == NULL) return IO_CANTOPEN;
 
  TMesh::begin_progress();
- while (fscanf(fp, "%2s", cmd) && cmd[0] != '\0')
+ while ((line = readLineFromFile(fp, 0)) != NULL)
  {
+  sscanf(line, "%2s", cmd);
+
   if (!strcmp(cmd,"v"))
   {
    if (face_section) TMesh::error("\nloadOBJ: Sorry. Couldn't manage disconnected vertex sections.\n");
-   if (fscanf(fp, "%f %f %f", &x, &y, &z) == 3) V.appendTail(newVertex(x,y,z));
+   if (sscanf(line, "v %f %f %f", &x, &y, &z) == 3) V.appendTail(newVertex(x, y, z));
    else TMesh::error("\nloadOBJ: Couldn't read coordinates for vertex # %d\n",i);
   }
   else if (!strcmp(cmd,"f"))
@@ -1381,30 +1578,78 @@ int Basic_TMesh::loadOBJ(const char *fname)
     i=0;
    }
 
-   if (fscanf(fp,"%d %d %d",&i1,&i2,&i3) == 3)
+   line += 2;
+   char *token = strtok(line, " \t");
+   if (token != NULL) i1 = atoi(token);
+   token = strtok(NULL, " \t");
+   if (token != NULL) i2 = atoi(token);
+   token = strtok(NULL, " \t");
+   if (token != NULL) i3 = atoi(token);
+   if (token != NULL)
    {
     if ((i%1000) == 0) TMesh::report_progress("Loading ..%d%%",(i*100)/(nv*2));
     if (i1<0 || i2<0 || i3<0) TMesh::error("\nloadOBJ: Sorry. Negative vertex references not supported.\n");
     if (i1<1 || i2<1 || i3<1 || i1>nv || i2>nv || i3>nv) TMesh::error("\nloadOBJ: Invalid index at face %d!\n",i);
     do
     {
+	 t = NULL;
      if (i1 == i2 || i2 == i3 || i3 == i1) TMesh::warning("\nloadOBJ: Coincident indexes at triangle %d! Skipping.\n",i);
-     else if (!CreateIndexedTriangle(var, i1-1, i2-1, i3-1)) TMesh::warning("\nloadOBJ: This shouldn't happen!!! Skipping triangle.\n");
-     i2 = i3;
-     while ((c=fgetc(fp)) != EOF && isspace(c) && c != '\n' && c != '\r');
-     if (c==EOF) TMesh::error("\nloadOBJ: Unexpected end of file!\n");
-     if (c != '\n' && c != '\r')
-     {
-      ungetc(c, fp);
-      if (fscanf(fp,"%d",&i3) != 1) TMesh::error("\nloadOBJ: Couldn't read indexes for face # %d\n",i);
-      else triangulate=1;
-     }
-    } while (c != '\n' && c != '\r');
+     else if ((t=CreateIndexedTriangle(var, i1-1, i2-1, i3-1))==NULL) TMesh::warning("\nloadOBJ: This shouldn't happen!!! Skipping triangle.\n");
+#ifdef USE_PER_TRIANGLE_COLORS
+	 if (t != NULL && colors.numels())
+	 {
+		 t->setColor((UBYTE)(red * 255), (UBYTE)(green * 255), (UBYTE)(blue * 255), 255);
+	 }
+#endif
+	 i2 = i3;
+	 token = strtok(NULL, " \t");
+	 if (token != NULL) { i3 = atoi(token); triangulate = true; }
+	} while (token != NULL);
    }
    else TMesh::error("\nloadOBJ: Couldn't read indexes for face # %d\n",i);
    i++;
   }
-  else if (readLineFromFile(fp, 0) == NULL) break;
+#ifdef USE_PER_TRIANGLE_COLORS
+  else
+  {
+	  if (!strncmp(line, "mtllib", 6))
+	  {
+		  colp = fopen(line + 7, "r");
+		  if (colp == NULL) TMesh::warning("Can't open mtllib file %s. Reading geometry only...\n", line + 8); 
+		  else
+		  {
+			  TMesh::info("Loading colors from %s\n", line + 7);
+			  while ((line = readLineFromFile(colp, 0)) != NULL)
+			  {
+				  if (!strncmp(line, "newmtl", 6))
+				  {
+					  sscanf(line + 7, "%s", colorname);
+					  if ((line = readLineFromFile(colp, 0)) == NULL) TMesh::error("Unexpected EOF in mtl file.\n");
+					  if (sscanf(line, "Kd %f %f %f", &red, &green, &blue) != 3) TMesh::error("Unexpected syntax in mtl file.\n");
+					  colors.appendTail(_strdup(colorname));
+					  colors.appendTail((void *)((j_voidint)(red * 255))); colors.appendTail((void *)((j_voidint)(green * 255))); colors.appendTail((void *)((j_voidint)(blue * 255)));
+				  }
+			  }
+		  }
+	  }
+	  else if(!strncmp(line, "usemtl", 6))
+	  {
+		  sscanf(line + 7, "%s", colorname);
+		  if (!colors.numels()) TMesh::error("Could not load requested colors.\n");
+		  for (n = colors.head(); n != NULL; n = n->next()->next()->next()->next()) if (!strcmp(colorname, (char *)n->data)) break;
+		  if (n == NULL) TMesh::error("Could not find referenced color.\n");
+		  n = n->next(); red = ((j_voidint)n->data) / 255.0;
+		  n = n->next(); green = ((j_voidint)n->data) / 255.0;
+		  n = n->next(); blue = ((j_voidint)n->data) / 255.0;
+		  // The following four lines try to optimize for the case when colors are stored in the same order as faces
+		  void *c = colors.popHead(); colors.appendTail(c);
+		  c = colors.popHead(); colors.appendTail(c);
+		  c = colors.popHead(); colors.appendTail(c);
+		  c = colors.popHead(); colors.appendTail(c);
+	  }
+  }
+#endif
+
   cmd[0]='\0';
  }
 
@@ -1416,11 +1661,10 @@ int Basic_TMesh::loadOBJ(const char *fname)
  return 0;
 }
 
-////////////////////// Saves OBJ format ///////////////////////////
 
 int Basic_TMesh::saveOBJ(const char *fname)
 {
- FILE *fp;
+ FILE *fp, *colp = NULL;
  int i;
  char triname[256];
  Node *n;
@@ -1437,14 +1681,36 @@ int Basic_TMesh::saveOBJ(const char *fname)
 
  PRINT_HEADING_COMMENT(fp);
  
+#ifdef USE_PER_TRIANGLE_COLORS
+ char colname[256];
+ strcpy(colname, fname); colname[strlen(colname) - 3] = '\0';
+ strcat(colname, "mtu");
+ if ((colp = fopen(colname, "w")) == NULL)
+ {
+	 TMesh::warning("Can't open '%s' for output !\nSaving geometry only.", colname);
+ }
+
+ if (colp)
+ {
+	 fprintf(fp, "mtllib %s\n", colname);
+	 Triangle *t;
+	 i = 0; FOREACHTRIANGLE(t, n) fprintf(colp, "newmtl color_%d\nKd %f %f %f\n", i++, t->getRedComponent() / 255.0, t->getGreenComponent() / 255.0, t->getBlueComponent() / 255.0);
+ }
+#endif
+
  FOREACHVERTEX(v, n) fprintf(fp, "v %f %f %f\n", TMESH_TO_FLOAT(v->x), TMESH_TO_FLOAT(v->y), TMESH_TO_FLOAT(v->z));
 
  ocds = new coord[V.numels()];
  i=0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
  i=0; FOREACHVERTEX(v, n) v->x = i++;
 
- FOREACHNODE(T, n) fprintf(fp,"f %d %d %d\n",TVI1(n)+1,TVI2(n)+1,TVI3(n)+1);
+ i = 0; FOREACHNODE(T, n)
+ {
+	 if (colp) fprintf(fp, "usemtl color_%d\n",i++);
+	 fprintf(fp, "f %d %d %d\n", TVI1(n) + 1, TVI2(n) + 1, TVI3(n) + 1);
+ }
  
+ if (colp) fclose(colp);
  fclose(fp);
  i=0; FOREACHVERTEX(v, n) v->x = ocds[i++];
  delete[] ocds;
@@ -1453,8 +1719,11 @@ int Basic_TMesh::saveOBJ(const char *fname)
 }
 
 
-
-////////////////////// Loads STL format ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+//
+// STL format
+//
+////////////////////////////////////////////////////////////////////////
 
 int Basic_TMesh::loadSTL(const char *fname)
 {
@@ -1549,7 +1818,6 @@ int Basic_TMesh::loadSTL(const char *fname)
  return 0;
 }
 
-////////////////////// Saves STL format ///////////////////////////
 
 int Basic_TMesh::saveSTL(const char *fname)
 {
@@ -1583,39 +1851,6 @@ int Basic_TMesh::saveSTL(const char *fname)
 	fprintf(fp, "endsolid T_MESH\n");
 
 	fclose(fp);
-
-	return 0;
-}
-
-////////////////////// Saves Extact File format (EFF) ///////////////////////////
-
-int Basic_TMesh::saveEFF(const char *fname)
-{
-	std::ofstream os;
-	os.open(fname);
-	if (!os.is_open())
-	{
-		TMesh::warning("Can't open '%s' for output !\n", fname);
-		return 1;
-	}
-
-	os << "EFF\n";
-	os << V.numels() << " " << T.numels() << "\n";
-
-	Node *n;
-	Vertex *v;
-	FOREACHVERTEX(v, n) os << v->x << " " << v->y << " " << v->z << "\n";
-
-	coord *ocds = new coord[V.numels()];
-	int i;
-	i = 0; FOREACHVERTEX(v, n) ocds[i++] = v->x;
-	i = 0; FOREACHVERTEX(v, n) v->x = i++;
-
-	FOREACHNODE(T, n) os << TVI1(n) << " " << TVI2(n) << " " << TVI3(n) << "\n";
-
-	os.close();
-	i = 0; FOREACHVERTEX(v, n) v->x = ocds[i++];
-	delete[] ocds;
 
 	return 0;
 }
