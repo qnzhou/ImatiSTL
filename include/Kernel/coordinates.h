@@ -163,7 +163,8 @@ inline PM_Rational fabs(const PM_Rational& a) {	if (a < 0) return -a; else retur
 
 /**************** I/O operators ****************/
 
-inline std::ostream & operator<<(std::ostream &o, const PM_Rational& c) { /*return o << c.toRational(); */return o << EXACT_NT_NUMERATOR((&c.toRational())) << "/" << EXACT_NT_DENOMINATOR((&c.toRational())); }
+inline std::ostream & operator<<(std::ostream &o, const PM_Rational& c) { /*return o << c.toRational(); */
+    auto t = c.toRational(); return o << EXACT_NT_NUMERATOR((&t)) << "/" << EXACT_NT_DENOMINATOR((&t)); }
 inline std::istream & operator>>(std::istream &i, PM_Rational& c) { EXACT_NT a; i >> a; double b = EXACT_NT_TO_DOUBLE(a); if (PM_Rational(b) == PM_Rational(a)) c.setFromDouble(b); else c.setFromRational(a); return i; }
 
 #define TMESH_TO_DOUBLE(x) ((x).toDouble())

@@ -82,8 +82,8 @@ void edgeHeap::update(Edge *e)
 
 int edgeHeap::compare(const void *e1, const void *e2)
 {
-	Edge *a = edges[(int)e1];
-	Edge *b = edges[(int)e2];
+	Edge *a = edges[(intptr_t)e1];
+	Edge *b = edges[(intptr_t)e2];
 	coord l1 = getEdgeCost(a);
 	coord l2 = getEdgeCost(b);
 	if (l1 < l2) return -1;

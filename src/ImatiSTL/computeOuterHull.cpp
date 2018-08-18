@@ -624,7 +624,7 @@ public:
 		Triangle *t;
 		Node *n;
 		FOREACHVTTRIANGLE((&(triangles)), t, n)
-			fprintf(fp, "%d, %d, %d, -1,\n", (int)t->v1()->info, (int)t->v2()->info, (int)t->v3()->info);
+			fprintf(fp, "%d, %d, %d, -1,\n", (intptr_t)t->v1()->info, (intptr_t)t->v2()->info, (intptr_t)t->v3()->info);
 
 		fprintf(fp, "]\n}\n");
 	}

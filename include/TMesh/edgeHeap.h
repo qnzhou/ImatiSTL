@@ -83,7 +83,7 @@ namespace T_MESH
 		inline void push(Edge *e);
 
 		// Removal of the first element
-		inline Edge *popHead() { return edges[(int)removeHead()]; }
+		inline Edge *popHead() { return edges[(intptr_t)removeHead()]; }
 
 		// Emptiness check
 		inline int isEmpty() { return (numels == 0); }
